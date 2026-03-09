@@ -28,7 +28,7 @@ public class AuthController {
     @PostMapping("/register") 
     @Operation(
         summary = "Registrar nuevo usuario",
-        description = "Permite registrar un nuevo usuario en el sistema"
+        description = "Permite registrar un nuevo usuario en el sistema PRUEBA EXISTENTE"
     )
     @ApiResponses(value = {
             @ApiResponse(responseCode = "201", description = "Usuario registrado correctamente"),
