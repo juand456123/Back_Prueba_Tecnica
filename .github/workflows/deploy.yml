@@ -7,10 +7,18 @@ on:
     paths:
       - 'btg-funds/src/**'
       - 'btg-funds/pom.xml'
+      - 'btg-funds/mvnw'
       - '.github/workflows/deploy.yml'
+  workflow_run:
+    workflows: ["BTG Funds Infra"]
+    types:
+      - completed
 
 jobs:
   build-and-deploy:
+    if: |
+      github.event_name == 'push' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     environment: produccion
 
@@ -52,7 +60,7 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
-        run: terraform init
+        run: terraform init -input=false
 
       - name: Read Terraform outputs
         id: tf_outputs
@@ -111,6 +119,8 @@ jobs:
           twilio.account-sid=${{ secrets.TWILIO_ACCOUNT_SID }}
           twilio.auth-token=${{ secrets.TWILIO_AUTH_TOKEN }}
           twilio.from-number=${{ secrets.TWILIO_FROM_NUMBER }}
+          management.endpoints.web.exposure.include=health,info
+          management.endpoint.health.show-details=always
           EOL
           EOF
 
@@ -157,10 +167,8 @@ jobs:
               echo 'Waiting for application to respond on port ${{ secrets.SERVER_PORT }}...'
 
               for i in {1..18}; do
-                if curl -fsS -X POST http://localhost:${{ secrets.SERVER_PORT }}/api/auth/login \
-                  -H 'Content-Type: application/json' \
-                  -d '{\"username\":\"${{ secrets.VERIFY_USERNAME }}\",\"password\":\"${{ secrets.VERIFY_PASSWORD }}\"}' > /dev/null; then
-                  echo 'Application is up and login endpoint is responding.'
+                if curl -fsS http://localhost:${{ secrets.SERVER_PORT }}/actuator/health > /dev/null; then
+                  echo 'Application is up and health endpoint is responding.'
                   exit 0
                 fi
 
