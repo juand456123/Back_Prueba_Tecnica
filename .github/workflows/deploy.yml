@@ -18,12 +18,6 @@ jobs:
     runs-on: ubuntu-latest
     environment: produccion
 
-    outputs:
-      public_dns: ${{ steps.resolve_instance.outputs.public_dns }}
-      public_ip: ${{ steps.resolve_instance.outputs.public_ip }}
-      ssh_user: ${{ steps.resolve_instance.outputs.ssh_user }}
-      app_url: ${{ steps.resolve_instance.outputs.app_url }}
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -45,7 +39,6 @@ jobs:
             echo "No existing instance found."
           else
             echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "instance_id=$INSTANCE_ID" >> "$GITHUB_OUTPUT"
             echo "Existing instance found: $INSTANCE_ID"
           fi
 
@@ -89,72 +82,11 @@ jobs:
           AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
         run: terraform apply -input=false -auto-approve tfplan
 
-      - name: Resolve instance info from AWS
-        id: resolve_instance
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
-          SERVER_PORT: ${{ secrets.SERVER_PORT }}
-        run: |
-          INSTANCE_ID=$(aws ec2 describe-instances \
-            --filters "Name=tag:Name,Values=btg-funds-api" "Name=instance-state-name,Values=pending,running,stopping,stopped" \
-            --query "Reservations[].Instances[].InstanceId | [0]" \
-            --output text)
-
-          if [ "$INSTANCE_ID" = "None" ] || [ -z "$INSTANCE_ID" ]; then
-            echo "No EC2 instance found after Terraform/apply."
-            exit 1
-          fi
-
-          STATE=$(aws ec2 describe-instances \
-            --instance-ids "$INSTANCE_ID" \
-            --query "Reservations[0].Instances[0].State.Name" \
-            --output text)
-
-          if [ "$STATE" = "stopped" ] || [ "$STATE" = "stopping" ]; then
-            aws ec2 start-instances --instance-ids "$INSTANCE_ID" >/dev/null
-          fi
-
-          aws ec2 wait instance-running --instance-ids "$INSTANCE_ID"
-
-          for i in {1..30}; do
-            PUBLIC_DNS=$(aws ec2 describe-instances \
-              --instance-ids "$INSTANCE_ID" \
-              --query "Reservations[0].Instances[0].PublicDnsName" \
-              --output text)
-
-            PUBLIC_IP=$(aws ec2 describe-instances \
-              --instance-ids "$INSTANCE_ID" \
-              --query "Reservations[0].Instances[0].PublicIpAddress" \
-              --output text)
-
-            echo "Attempt $i/30 - PUBLIC_DNS=$PUBLIC_DNS - PUBLIC_IP=$PUBLIC_IP"
-
-            if [ "$PUBLIC_DNS" != "None" ] && [ -n "$PUBLIC_DNS" ]; then
-              echo "public_dns=$PUBLIC_DNS" >> "$GITHUB_OUTPUT"
-              echo "public_ip=$PUBLIC_IP" >> "$GITHUB_OUTPUT"
-              echo "ssh_user=ec2-user" >> "$GITHUB_OUTPUT"
-              echo "app_url=http://$PUBLIC_IP:$SERVER_PORT" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-
-            sleep 10
-          done
-
-          echo "Public DNS never became available."
-          exit 1
-
   deploy:
     name: Build and Deploy Application
     runs-on: ubuntu-latest
     environment: produccion
     needs: infra
-    env:
-      PUBLIC_DNS: ${{ needs.infra.outputs.public_dns }}
-      PUBLIC_IP: ${{ needs.infra.outputs.public_ip }}
-      SSH_USER: ${{ needs.infra.outputs.ssh_user }}
-      APP_URL: ${{ needs.infra.outputs.app_url }}
 
     steps:
       - name: Checkout repository
@@ -180,6 +112,62 @@ jobs:
         run: |
           JAR_FILE=$(ls btg-funds/target/*.jar | head -n 1)
           cp "$JAR_FILE" btg-funds/target/btg-funds.jar
+
+      - name: Resolve deploy variables from AWS
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+          SERVER_PORT: ${{ secrets.SERVER_PORT }}
+        run: |
+          INSTANCE_ID=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=btg-funds-api" "Name=instance-state-name,Values=pending,running,stopping,stopped" \
+            --query "Reservations[].Instances[].InstanceId | [0]" \
+            --output text)
+
+          if [ "$INSTANCE_ID" = "None" ] || [ -z "$INSTANCE_ID" ]; then
+            echo "No EC2 instance found for deploy."
+            exit 1
+          fi
+
+          STATE=$(aws ec2 describe-instances \
+            --instance-ids "$INSTANCE_ID" \
+            --query "Reservations[0].Instances[0].State.Name" \
+            --output text)
+
+          if [ "$STATE" = "stopped" ] || [ "$STATE" = "stopping" ]; then
+            echo "Starting instance $INSTANCE_ID..."
+            aws ec2 start-instances --instance-ids "$INSTANCE_ID" >/dev/null
+          fi
+
+          aws ec2 wait instance-running --instance-ids "$INSTANCE_ID"
+
+          for i in {1..30}; do
+            PUBLIC_DNS=$(aws ec2 describe-instances \
+              --instance-ids "$INSTANCE_ID" \
+              --query "Reservations[0].Instances[0].PublicDnsName" \
+              --output text)
+
+            PUBLIC_IP=$(aws ec2 describe-instances \
+              --instance-ids "$INSTANCE_ID" \
+              --query "Reservations[0].Instances[0].PublicIpAddress" \
+              --output text)
+
+            echo "Attempt $i/30 - PUBLIC_DNS=$PUBLIC_DNS - PUBLIC_IP=$PUBLIC_IP"
+
+            if [ "$PUBLIC_DNS" != "None" ] && [ -n "$PUBLIC_DNS" ]; then
+              echo "PUBLIC_DNS=$PUBLIC_DNS" >> "$GITHUB_ENV"
+              echo "PUBLIC_IP=$PUBLIC_IP" >> "$GITHUB_ENV"
+              echo "SSH_USER=ec2-user" >> "$GITHUB_ENV"
+              echo "APP_URL=http://$PUBLIC_IP:$SERVER_PORT" >> "$GITHUB_ENV"
+              exit 0
+            fi
+
+            sleep 10
+          done
+
+          echo "Public DNS never became available for deploy."
+          exit 1
 
       - name: Show resolved infra values
         run: |
