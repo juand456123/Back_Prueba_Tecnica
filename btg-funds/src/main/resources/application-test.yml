@@ -1,0 +1,52 @@
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+jwt:
+  secret: test-secret-key-for-ci
+  expiration: 86400000
+
+twilio:
+  account-sid: test-account-sid
+  auth-token: test-auth-token
+  from-number: +10000000000
+
+spring:
+  application:
+    name: btg-funds
+
+  datasource:
+    url: jdbc:h2:mem:btgfundsdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+        default_schema: PUBLIC
+    database-platform: org.hibernate.dialect.H2Dialect
+
+  sendgrid:
+    api-key: test-sendgrid-api-key
+    from-email: test@example.com
+
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration
+
+server:
+  port: 0
+
+logging:
+  level:
+    org.hibernate.SQL: off
+    org.hibernate.orm.jdbc.bind: off
+    org.mongodb.driver: off
