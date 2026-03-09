@@ -45,44 +45,55 @@ jobs:
       - name: Copy JAR to EC2
         run: |
           scp btg-funds/target/btg-funds.jar \
-          ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/opt/btg-funds/btg-funds.jar
+            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/opt/btg-funds/btg-funds.jar
 
       - name: Create application.properties
         run: |
-          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
-          cat > /opt/btg-funds/application.properties << EOL
-server.port=${{ secrets.SERVER_PORT }}
+          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "cat > /opt/btg-funds/application.properties" <<EOF
+          server.port=${{ secrets.SERVER_PORT }}
+          spring.application.name=btg-funds
+          spring.mongodb.uri=${{ secrets.MONGODB_URI }}
+          spring.datasource.url=${{ secrets.DB_URL }}
+          spring.datasource.username=${{ secrets.DB_USERNAME }}
+          spring.datasource.password=${{ secrets.DB_PASSWORD }}
+          spring.datasource.driver-class-name=org.postgresql.Driver
+          spring.jpa.hibernate.ddl-auto=none
+          spring.jpa.show-sql=true
+          spring.jpa.properties.hibernate.format_sql=true
+          spring.jpa.properties.hibernate.default_schema=btg
+          spring.sendgrid.api-key=${{ secrets.SENDGRID_API_KEY }}
+          spring.sendgrid.from-email=${{ secrets.SENDGRID_FROM_EMAIL }}
+          jwt.secret=${{ secrets.JWT_SECRET }}
+          jwt.expiration=${{ secrets.JWT_EXPIRATION }}
+          twilio.account-sid=${{ secrets.TWILIO_ACCOUNT_SID }}
+          twilio.auth-token=${{ secrets.TWILIO_AUTH_TOKEN }}
+          twilio.from-number=${{ secrets.TWILIO_FROM_NUMBER }}
+          EOF
 
-spring.application.name=btg-funds
+      - name: Create systemd service
+        run: |
+          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "sudo tee /etc/systemd/system/btg-funds.service > /dev/null" <<EOF
+          [Unit]
+          Description=BTG Funds API
+          After=network.target
 
-spring.mongodb.uri=${{ secrets.MONGODB_URI }}
+          [Service]
+          User=ec2-user
+          WorkingDirectory=/opt/btg-funds
+          ExecStart=/usr/bin/java -jar /opt/btg-funds/btg-funds.jar --spring.config.location=file:/opt/btg-funds/application.properties
+          SuccessExitStatus=143
+          Restart=always
+          RestartSec=5
 
-spring.datasource.url=${{ secrets.DB_URL }}
-spring.datasource.username=${{ secrets.DB_USERNAME }}
-spring.datasource.password=${{ secrets.DB_PASSWORD }}
-spring.datasource.driver-class-name=org.postgresql.Driver
-
-spring.jpa.hibernate.ddl-auto=none
-spring.jpa.show-sql=true
-spring.jpa.properties.hibernate.format_sql=true
-spring.jpa.properties.hibernate.default_schema=btg
-
-spring.sendgrid.api-key=${{ secrets.SENDGRID_API_KEY }}
-spring.sendgrid.from-email=${{ secrets.SENDGRID_FROM_EMAIL }}
-
-jwt.secret=${{ secrets.JWT_SECRET }}
-jwt.expiration=${{ secrets.JWT_EXPIRATION }}
-
-twilio.account-sid=${{ secrets.TWILIO_ACCOUNT_SID }}
-twilio.auth-token=${{ secrets.TWILIO_AUTH_TOKEN }}
-twilio.from-number=${{ secrets.TWILIO_FROM_NUMBER }}
-EOL
+          [Install]
+          WantedBy=multi-user.target
           EOF
 
       - name: Restart service
         run: |
-          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
-          sudo systemctl daemon-reload
-          sudo systemctl restart btg-funds
-          sudo systemctl status btg-funds --no-pager
-          EOF
+          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "
+            sudo systemctl daemon-reload &&
+            sudo systemctl enable btg-funds &&
+            sudo systemctl restart btg-funds &&
+            sudo systemctl status btg-funds --no-pager
+          "
