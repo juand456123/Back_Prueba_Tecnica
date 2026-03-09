@@ -311,3 +311,9 @@ jobs:
               sudo journalctl -u btg-funds -n 100 --no-pager
               exit 1
             "
+      - name: Show deployed application URLs
+        run: |
+          echo "Aplicación desplegada en:"
+          echo "http://$PUBLIC_IP:${{ secrets.SERVER_PORT }}"
+          echo "Swagger UI:"
+          echo "http://$PUBLIC_IP:${{ secrets.SERVER_PORT }}/swagger-ui/index.html#/"      

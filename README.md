@@ -1,317 +1,222 @@
+
 # BTG Funds API
 
-API desarrollada como solución para la **Prueba Técnica Backend -- BTG
-Pactual**.
+API desarrollada como solución para la **Prueba Técnica Backend — BTG Pactual**.
 
-Nota:“Este repositorio no corresponde a código oficial de BTG Pactual, únicamente corresponde a una prueba técnica personal.”
+> **Disclaimer**  
+> “Este repositorio no corresponde a código oficial de BTG Pactual, únicamente corresponde a una prueba técnica personal.”
 
-El sistema permite a los clientes gestionar sus fondos de inversión sin
-necesidad de contactar a un asesor, incluyendo:
+El sistema permite a los clientes gestionar sus fondos de inversión **sin necesidad de contactar a un asesor**, incluyendo:
 
--   Suscribirse a fondos de inversión
--   Cancelar suscripciones
--   Consultar historial de transacciones
--   Recibir notificaciones por **Email o SMS** según la preferencia del
-    cliente
+- Suscribirse a fondos de inversión
+- Cancelar suscripciones
+- Consultar historial de transacciones
+- Recibir notificaciones por **Email o SMS** según la preferencia del cliente
 
-La solución fue construida con **Spring Boot**, desplegada en **AWS
-EC2**, utilizando **MongoDB Atlas** y **PostgreSQL (Supabase)**.
+La solución fue construida con **Spring Boot**, desplegada en **AWS EC2**, utilizando **MongoDB Atlas** y **PostgreSQL (Supabase)**.
 
-------------------------------------------------------------------------
+---
 
-# Documentación técnica del despliegue
+# Arquitectura de la solución
 
-Para una explicación detallada de la arquitectura, infraestructura y proceso de despliegue implementado en esta solución, consulta el siguiente documento:
+La solución implementa una arquitectura moderna basada en:
 
-📄 **Documento técnico de despliegue**
+- **Arquitectura en capas (Layered Architecture)**
+- **Persistencia híbrida (MongoDB + PostgreSQL)**
+- **Seguridad con JWT**
+- **CI/CD automatizado**
+- **Infraestructura como código (Terraform)**
 
-[Descargar documentación completa](docs/BTG_Funds_Deployment.pdf)
+## Diagrama de arquitectura
+
+![Arquitectura CI/CD](docs/architecture-cicd.png)
+
+---
+
+# Documentación técnica completa
+
+Para una explicación **detallada de la arquitectura, decisiones técnicas y proceso de despliegue**, consulta el documento técnico:
+
+📄 **Documento técnico de arquitectura y despliegue**
+
+[Descargar documentación completa](docs/arquitectura_btg_funds_ci_cd_v2.pdf)
 
 Este documento describe:
 
-- Arquitectura general de la solución
-- Infraestructura implementada con Terraform
-- Pipeline CI/CD con GitHub Actions
-- Proceso de despliegue en AWS EC2
-- Integraciones externas (MongoDB Atlas, PostgreSQL, SendGrid, Twilio)
-- Seguridad con JWT
+- Arquitectura general del sistema
+- Arquitectura **n‑capas del backend**
+- Pipeline **CI/CD con GitHub Actions**
+- Infraestructura con **Terraform**
+- Despliegue automatizado en **AWS EC2**
+- Persistencia **MongoDB + PostgreSQL**
+- Seguridad con **JWT y roles**
+- Integraciones externas (**SendGrid y Twilio**)
 
-------------------------------------------------------------------------
+---
 
 # Scripts SQL (PostgreSQL)
 
-La parte correspondiente a la solución SQL de la prueba técnica se encuentra incluida en el repositorio.
+La parte correspondiente a la **solución SQL de la prueba técnica** se encuentra incluida en el repositorio.
 
-Los scripts están organizados en la siguiente ruta:
+Ruta:
 
 docs/SQL_Prueba
 
 ## Archivos incluidos
 
-- [00_create_database.sql](docs/SQL_Prueba/00_create_database.sql) → creación de la base de datos
-- [01_create_schema.sql](docs/SQL_Prueba/01_create_schema.sql) → creación del esquema
-- [02_create_tables.sql](docs/SQL_Prueba/02_create_tables.sql) → creación de las tablas
-- [03_create_constraints.sql](docs/SQL_Prueba/03_create_constraints.sql) → llaves primarias y foráneas
-- [04_seed_data.sql](docs/SQL_Prueba/04_seed_data.sql) → datos iniciales de prueba
-- [05_queries.sql](docs/SQL_Prueba/05_queries.sql) → consultas solicitadas en la prueba técnica
+- 00_create_database.sql → creación de la base de datos
+- 01_create_schema.sql → creación del esquema
+- 02_create_tables.sql → creación de tablas
+- 03_create_constraints.sql → llaves primarias y foráneas
+- 04_seed_data.sql → datos iniciales de prueba
+- 05_queries.sql → consultas solicitadas en la prueba técnica
 
 ## Orden de ejecución
 
-Los scripts deben ejecutarse en el siguiente orden:
+1. 00_create_database.sql
+2. 01_create_schema.sql
+3. 02_create_tables.sql
+4. 03_create_constraints.sql
+5. 04_seed_data.sql
+6. 05_queries.sql
 
-1. [00_create_database.sql](docs/SQL_Prueba/00_create_database.sql)
-2. [01_create_schema.sql](docs/SQL_Prueba/01_create_schema.sql)
-3. [02_create_tables.sql](docs/SQL_Prueba/02_create_tables.sql)
-4. [03_create_constraints.sql](docs/SQL_Prueba/03_create_constraints.sql)
-5. [04_seed_data.sql](docs/SQL_Prueba/04_seed_data.sql)
-6. [05_queries.sql](docs/SQL_Prueba/05_queries.sql)
+Esto permite crear completamente la **estructura relacional utilizada en la solución**.
 
-Esto permite crear completamente la estructura relacional utilizada en la solución.
-
-------------------------------------------------------------------------
+---
 
 # Colección de Postman
 
 Puedes importar la colección de Postman para probar todos los endpoints de la API.
 
-[Descargar colección Postman](docs/BTG-Funds-API.postman_collection.json)
+📦 Descargar colección Postman  
+docs/BTG-Funds-API.postman_collection.json
 
 ## Uso de la colección
 
-La colección incluye **variables configurables** para facilitar las pruebas de los endpoints.
-
-### Paso 1 – Generar el token
-
-Primero debes ejecutar el endpoint de **login** para generar el token JWT.
+### Paso 1 — Generar token JWT
 
 POST /api/auth/login
 
-Ejemplo de credenciales:
+Ejemplo de request:
 
 {
   "username": "revisar collection",
   "password": "revisar collection"
 }
 
-### Paso 2 – Guardar el token
+### Paso 2 — Guardar el token
 
-Una vez generado el token:
+Copiar el token devuelto y asignarlo a la variable:
 
-1. Copiar el valor del token devuelto por el endpoint.
-2. Asignarlo a la variable **token** dentro de la colección de Postman.
+token
 
-### Paso 3 – Probar el resto de endpoints
+dentro de la colección.
 
-Después de configurar la variable `token`, podrás ejecutar los demás endpoints protegidos de la API.
+### Paso 3 — Probar endpoints protegidos
+
+Una vez configurado el token podrás probar:
+
+- fondos
+- suscripciones
+- cancelaciones
+- historial de transacciones
 
 ### Expiración del token
 
-El token JWT generado tiene una **vigencia de 24 horas**.  
-Una vez expirado, será necesario generar uno nuevo utilizando nuevamente el endpoint de login.
+El token JWT tiene una vigencia de **24 horas**.
 
-------------------------------------------------------------------------
+---
 
 # API desplegada
 
-Actualmente existen **dos entornos de despliegue** utilizados durante el
-desarrollo de la prueba técnica.
+La aplicación se despliega automáticamente mediante **GitHub Actions**.
 
-## Entorno con CI/CD (RECOMENDADO)
+Debido a que el despliegue se realiza sobre instancias **AWS EC2 con IP pública dinámica**, la dirección de acceso puede cambiar cuando la instancia se reinicia.
 
-Instancia EC2 utilizada para despliegues automáticos mediante **GitHub
-Actions**.
+Por esta razón **la URL del servicio no se fija en el README**.
 
-Este entorno contiene la **versión más actualizada del sistema**,
-incluyendo:
+Durante cada ejecución del **pipeline CI/CD**, el workflow imprime en los logs:
 
--   Pruebas automatizadas
--   Documentación Swagger
--   Último empaquetado de la aplicación
+- la **IP pública actual**
+- la **URL de acceso al servicio**
+- la **URL de Swagger**
 
-URL base:
+Esto permite conocer fácilmente la dirección actual del entorno desplegado.
 
-http://18.216.123.105:8080
+Ejemplo mostrado en el pipeline:
 
-Ejemplo de endpoint:
+Swagger:
 
-http://18.216.123.105:8080/api/funds
+http://IP_PUBLICA:PUERTO/swagger-ui/index.html#/
 
-### Documentación Swagger (habilitada)
-
-La documentación de la API se encuentra disponible en:
-
-http://18.216.123.105:8080/swagger-ui/index.html#/
-
-### Recomendación
-
-Se recomienda utilizar **este entorno** para probar la API, ya que
-corresponde al **despliegue más reciente generado mediante CI/CD**,
-incluyendo pruebas automatizadas y documentación completa.
-
-------------------------------------------------------------------------
-
-## Entorno creado con Terraform (infraestructura manual)
-
-Instancia EC2 creada mediante **Terraform** para demostrar el
-aprovisionamiento de infraestructura como código.
-
-URL:
-
-http://18.222.254.254:8080
-
-Ejemplo de endpoint:
-
-http://18.222.254.254:8080/api/funds
-
-### Nota
-
-Este entorno corresponde a una **versión inicial del despliegue**,
-utilizada únicamente para validar el aprovisionamiento de
-infraestructura.
-
-Este despliegue **no incluye Swagger ni el empaquetado final con
-pruebas**, ya que fue utilizado en las primeras pruebas de
-infraestructura antes de implementar el pipeline CI/CD.
-
-------------------------------------------------------------------------
-
-## Consideraciones sobre la IP
-
-Estas instancias utilizan **direcciones IP públicas dinámicas**.
-
-Debido a que se están utilizando **recursos gratuitos (AWS Free Tier)**
-para evitar costos en la nube, las instancias se apagan cuando no están
-en uso.
-
-Cuando una instancia se vuelve a iniciar, **AWS puede asignar una nueva
-dirección IP pública**, por lo que las direcciones indicadas pueden
-cambiar.
-
-------------------------------------------------------------------------
-
-# Repositorio
-
-Código fuente disponible en:
-
-https://github.com/juand456123/Back_Prueba_Tecnica
-
-------------------------------------------------------------------------
+---
 
 # Tecnologías utilizadas
 
 ## Backend
 
--   Java 21
--   Spring Boot
--   Spring Security
--   JWT Authentication
--   Spring Data MongoDB
--   Spring Data JPA
--   Maven
--   Swagger / OpenAPI
+- Java 21
+- Spring Boot
+- Spring Security
+- JWT Authentication
+- Spring Data MongoDB
+- Spring Data JPA
+- Maven
+- Swagger / OpenAPI
 
-------------------------------------------------------------------------
+---
 
 # Bases de datos
 
 ## MongoDB Atlas
 
-Utilizada para almacenar la información principal del negocio:
+Utilizada para almacenar información principal del negocio:
 
--   fondos
--   clientes
--   suscripciones
--   transacciones
--   notificaciones
--   usuarios
+- fondos
+- clientes
+- suscripciones
+- transacciones
+- notificaciones
+- usuarios
 
 ## PostgreSQL (Supabase)
 
-Utilizada para la parte relacional de la prueba técnica y persistencia
-SQL complementaria.
+Utilizada para la parte relacional del ejercicio SQL.
 
-------------------------------------------------------------------------
+---
 
 # Servicios externos
 
 ## SendGrid
 
-Servicio utilizado para el envío de **notificaciones por correo
-electrónico**.
+Servicio utilizado para el envío de **notificaciones por correo electrónico**.
 
 ## Twilio
 
 Servicio utilizado para el envío de **notificaciones SMS**.
 
-------------------------------------------------------------------------
+---
 
 # Arquitectura CI/CD
 
-Este es el **mecanismo principal utilizado para el despliegue de la
-aplicación**.
-
-![Arquitectura CI/CD](docs/architecture-cicd.png)
+El pipeline automatiza completamente el despliegue de la aplicación.
 
 ### Flujo del pipeline
 
-1.  Push al repositorio
-2.  GitHub Actions ejecuta el pipeline
-3.  Build del proyecto con Maven
-4.  Ejecución de pruebas
-5.  Generación del artefacto `.jar`
-6.  Conexión SSH a la instancia EC2
-7.  Copia del nuevo artefacto
-8.  Reinicio automático del servicio
+1. Push al repositorio
+2. GitHub Actions ejecuta el pipeline
+3. Build del proyecto con Maven
+4. Ejecución de pruebas
+5. Generación del artefacto `.jar`
+6. Conexión SSH a la instancia EC2
+7. Copia del nuevo artefacto
+8. Reinicio automático del servicio
 
-Este enfoque permite mantener **una única instancia EC2 actualizada
-automáticamente**.
+La aplicación se ejecuta como servicio Linux mediante:
 
-------------------------------------------------------------------------
+systemd
 
-# Arquitectura Terraform
-
-Terraform se utilizó para demostrar el aprovisionamiento de
-infraestructura como código.
-
-![Arquitectura Terraform](docs/architecture-terraform.png)
-
-Terraform permite:
-
--   crear infraestructura reproducible
--   aprovisionar instancias EC2
--   configurar recursos base en AWS
-
-Sin embargo, Terraform está orientado principalmente a
-**infraestructura**, no a despliegue continuo de aplicaciones.
-
-### Consideraciones
-
-Con Terraform:
-
--   normalmente se **crea una nueva instancia** cuando se aplica
-    infraestructura
--   no está pensado para **reemplazar únicamente el JAR de una
-    aplicación**
--   el artefacto debe subirse previamente a **S3** o copiarse
-    manualmente
--   el redeploy puede implicar reprovisionamiento
-
-Por esta razón Terraform fue utilizado principalmente para
-**provisionamiento inicial**.
-
-------------------------------------------------------------------------
-
-# Infraestructura actual
-
-La aplicación se ejecuta sobre:
-
--   **AWS EC2**
--   **MongoDB Atlas**
--   **PostgreSQL (Supabase)**
--   **GitHub Actions (CI/CD)**
--   **systemd** para ejecutar la aplicación
-
-Servicio Linux:
+Servicio:
 
 btg-funds.service
 
@@ -319,75 +224,72 @@ Ubicación del artefacto:
 
 /opt/btg-funds/btg-funds.jar
 
-------------------------------------------------------------------------
+---
 
 # Arquitectura del proyecto
 
-El proyecto sigue una arquitectura basada en **capas (Layered
-Architecture)**.
+El proyecto sigue una **arquitectura en capas (Layered Architecture)**.
 
 src/main/java/com/btg/btg_funds
 
-config → Configuración de la aplicación\
-controller → Controladores REST\
-document → Modelos MongoDB\
-entity → Entidades JPA\
-dto → Objetos de transferencia de datos\
-repository → Acceso a datos\
-service → Lógica de negocio\
-security → Configuración JWT y seguridad\
-exception → Manejo global de errores\
-notification → Integración con SendGrid y Twilio
+config → configuración de la aplicación  
+controller → controladores REST  
+document → modelos MongoDB  
+entity → entidades JPA  
+dto → objetos de transferencia de datos  
+repository → acceso a datos  
+service → lógica de negocio  
+security → autenticación JWT  
+exception → manejo global de errores  
+notification → integración SendGrid y Twilio
 
 Clase principal:
 
 BtgFundsApplication.java
 
-------------------------------------------------------------------------
+---
 
 # Reglas de negocio implementadas
 
 ## Saldo inicial
 
-Cada cliente inicia con un saldo disponible de:
+Cada cliente inicia con:
 
-COP \$500.000
+COP $500.000
 
-------------------------------------------------------------------------
+---
 
 ## Suscripción a fondos
 
 Para suscribirse a un fondo:
 
--   el cliente debe tener saldo suficiente
--   cada fondo tiene un monto mínimo de vinculación
+- el cliente debe tener saldo suficiente
+- cada fondo tiene un monto mínimo de vinculación
 
 Si no hay saldo suficiente:
 
-No tiene saldo disponible para vincularse al fondo
-`<Nombre del fondo>`{=html}
+No tiene saldo disponible para vincularse al fondo <Nombre del fondo>
 
-------------------------------------------------------------------------
+---
 
 ## Cancelación de suscripción
 
 Cuando el cliente cancela su suscripción:
 
--   el dinero invertido se retorna al saldo disponible del cliente
+- el dinero invertido se retorna al saldo disponible del cliente
 
-------------------------------------------------------------------------
+---
 
 ## Notificaciones
 
-Cuando un cliente se suscribe a un fondo se envía una notificación
-mediante:
+Cuando un cliente se suscribe a un fondo se envía una notificación mediante:
 
--   Email
--   SMS
+- Email
+- SMS
 
-dependiendo de la preferencia configurada por el cliente.
+según la preferencia configurada por el cliente.
 
-------------------------------------------------------------------------
+---
 
 # Endpoints principales
 
@@ -395,7 +297,7 @@ dependiendo de la preferencia configurada por el cliente.
 
 GET /api/funds
 
-------------------------------------------------------------------------
+---
 
 ## Suscribirse a un fondo
 
@@ -403,41 +305,40 @@ POST /api/subscriptions
 
 Request:
 
-{ "clientId": "123", "fundId": "456" }
+{
+  "clientId": "123",
+  "fundId": "456"
+}
 
-------------------------------------------------------------------------
+---
 
 ## Cancelar suscripción
 
 DELETE /api/subscriptions
 
-Request:
-
-{ "clientId": "123", "fundId": "456" }
-
-------------------------------------------------------------------------
+---
 
 ## Consultar historial de transacciones
 
 GET /api/subscriptions/transactions/{clientId}
 
-------------------------------------------------------------------------
+---
 
 # Ejecutar el proyecto localmente
 
-## 1 Clonar el repositorio
+## Clonar repositorio
 
 git clone https://github.com/juand456123/Back_Prueba_Tecnica
 
-## 2 Entrar al proyecto
+## Entrar al proyecto
 
 cd Back_Prueba_Tecnica
 
-## 3 Compilar el proyecto
+## Compilar
 
 mvn clean install
 
-## 4 Ejecutar la aplicación
+## Ejecutar
 
 mvn spring-boot:run
 
@@ -445,7 +346,7 @@ o
 
 java -jar target/btg-funds-0.0.1-SNAPSHOT.jar
 
-------------------------------------------------------------------------
+---
 
 # Comandos útiles en EC2
 
@@ -461,19 +362,25 @@ Reiniciar servicio
 
 sudo systemctl restart btg-funds
 
-------------------------------------------------------------------------
+---
 
 # Seguridad
 
-La API implementa seguridad basada en:
+La API implementa:
 
--   Spring Security
--   JWT Authentication
--   Filtros de autenticación
+- Spring Security
+- JWT Authentication
+- Roles de usuario
+- Filtros de autenticación
 
-------------------------------------------------------------------------
+Roles definidos:
+
+ADMIN  
+CLIENT
+
+---
 
 # Autor
 
-Juan Diego Guzmán Herrera\
+Juan Diego Guzmán Herrera  
 Backend Developer
