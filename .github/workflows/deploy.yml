@@ -14,29 +14,52 @@ on:
 
 jobs:
   infra:
-    name: Provision Infrastructure
+    name: Resolve or Provision Infrastructure
     runs-on: ubuntu-latest
     environment: produccion
 
     defaults:
       run:
         shell: bash
-        working-directory: btg-funds/infra
 
     outputs:
-      public_ip: ${{ steps.tf_outputs.outputs.public_ip }}
-      ssh_host: ${{ steps.tf_outputs.outputs.ssh_host }}
-      ssh_user: ${{ steps.tf_outputs.outputs.ssh_user }}
-      app_url: ${{ steps.tf_outputs.outputs.app_url }}
+      public_dns: ${{ steps.resolve_instance.outputs.public_dns }}
+      public_ip: ${{ steps.resolve_instance.outputs.public_ip }}
+      ssh_user: ${{ steps.resolve_instance.outputs.ssh_user }}
+      app_url: ${{ steps.resolve_instance.outputs.app_url }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Check if EC2 already exists
+        id: check_instance
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          INSTANCE_ID=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=btg-funds-api" "Name=instance-state-name,Values=pending,running,stopping,stopped" \
+            --query "Reservations[].Instances[].InstanceId | [0]" \
+            --output text)
+
+          if [ "$INSTANCE_ID" = "None" ] || [ -z "$INSTANCE_ID" ]; then
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "No existing instance found."
+          else
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "instance_id=$INSTANCE_ID" >> "$GITHUB_OUTPUT"
+            echo "Existing instance found: $INSTANCE_ID"
+          fi
+
       - name: Setup Terraform
+        if: steps.check_instance.outputs.exists == 'false'
         uses: hashicorp/setup-terraform@v3
 
       - name: Terraform Init
+        if: steps.check_instance.outputs.exists == 'false'
+        working-directory: btg-funds/infra
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -44,6 +67,8 @@ jobs:
         run: terraform init -input=false
 
       - name: Terraform Validate
+        if: steps.check_instance.outputs.exists == 'false'
+        working-directory: btg-funds/infra
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -51,6 +76,8 @@ jobs:
         run: terraform validate
 
       - name: Terraform Plan
+        if: steps.check_instance.outputs.exists == 'false'
+        working-directory: btg-funds/infra
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -58,51 +85,71 @@ jobs:
         run: terraform plan -input=false -var-file="terraform.tfvars" -out=tfplan
 
       - name: Terraform Apply
+        if: steps.check_instance.outputs.exists == 'false'
+        working-directory: btg-funds/infra
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
         run: terraform apply -input=false -auto-approve tfplan
 
-      - name: Wait for Terraform SSH host output
+      - name: Resolve instance info from AWS
+        id: resolve_instance
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+          SERVER_PORT: ${{ secrets.SERVER_PORT }}
         run: |
-          for i in {1..18}; do
-            SSH_HOST="$(terraform output -raw ssh_host 2>/dev/null || true)"
-            if [ -n "$SSH_HOST" ]; then
-              echo "SSH host ready: $SSH_HOST"
+          INSTANCE_ID=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=btg-funds-api" "Name=instance-state-name,Values=pending,running,stopping,stopped" \
+            --query "Reservations[].Instances[].InstanceId | [0]" \
+            --output text)
+
+          if [ "$INSTANCE_ID" = "None" ] || [ -z "$INSTANCE_ID" ]; then
+            echo "No EC2 instance found after Terraform/apply."
+            exit 1
+          fi
+
+          STATE=$(aws ec2 describe-instances \
+            --instance-ids "$INSTANCE_ID" \
+            --query "Reservations[0].Instances[0].State.Name" \
+            --output text)
+
+          if [ "$STATE" = "stopped" ] || [ "$STATE" = "stopping" ]; then
+            echo "Starting existing instance $INSTANCE_ID..."
+            aws ec2 start-instances --instance-ids "$INSTANCE_ID" >/dev/null
+          fi
+
+          echo "Waiting for instance to be running..."
+          aws ec2 wait instance-running --instance-ids "$INSTANCE_ID"
+
+          for i in {1..30}; do
+            PUBLIC_DNS=$(aws ec2 describe-instances \
+              --instance-ids "$INSTANCE_ID" \
+              --query "Reservations[0].Instances[0].PublicDnsName" \
+              --output text)
+
+            PUBLIC_IP=$(aws ec2 describe-instances \
+              --instance-ids "$INSTANCE_ID" \
+              --query "Reservations[0].Instances[0].PublicIpAddress" \
+              --output text)
+
+            if [ "$PUBLIC_DNS" != "None" ] && [ -n "$PUBLIC_DNS" ]; then
+              echo "public_dns=$PUBLIC_DNS" >> "$GITHUB_OUTPUT"
+              echo "public_ip=$PUBLIC_IP" >> "$GITHUB_OUTPUT"
+              echo "ssh_user=ec2-user" >> "$GITHUB_OUTPUT"
+              echo "app_url=http://$PUBLIC_IP:$SERVER_PORT" >> "$GITHUB_OUTPUT"
+              echo "Resolved DNS: $PUBLIC_DNS"
               exit 0
             fi
-            echo "Attempt $i/18 - ssh_host output still empty, waiting 10 seconds..."
+
+            echo "Attempt $i/30 - public DNS not ready yet, waiting 10 seconds..."
             sleep 10
           done
 
-          echo "ssh_host output never became available."
-          terraform output || true
+          echo "Public DNS never became available."
           exit 1
-
-      - name: Read Terraform outputs
-        id: tf_outputs
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
-        run: |
-          echo "public_ip=$(terraform output -raw public_ip)" >> "$GITHUB_OUTPUT"
-          echo "ssh_host=$(terraform output -raw ssh_host)" >> "$GITHUB_OUTPUT"
-          echo "ssh_user=$(terraform output -raw ssh_user)" >> "$GITHUB_OUTPUT"
-          echo "app_url=$(terraform output -raw app_url)" >> "$GITHUB_OUTPUT"
-
-      - name: Show Terraform outputs
-        run: |
-          terraform output
-          echo "PUBLIC_IP=${{ steps.tf_outputs.outputs.public_ip }}"
-          echo "SSH_HOST=${{ steps.tf_outputs.outputs.ssh_host }}"
-          echo "SSH_USER=${{ steps.tf_outputs.outputs.ssh_user }}"
-          echo "APP_URL=${{ steps.tf_outputs.outputs.app_url }}"
 
   deploy:
     name: Build and Deploy Application
@@ -146,15 +193,15 @@ jobs:
 
       - name: Show target host
         run: |
-          echo "Deploying to ${{ needs.infra.outputs.ssh_host }}"
+          echo "Deploying to DNS: ${{ needs.infra.outputs.public_dns }}"
           echo "User: ${{ needs.infra.outputs.ssh_user }}"
           echo "App URL: ${{ needs.infra.outputs.app_url }}"
 
-      - name: Wait for SSH
+      - name: Wait for SSH on public DNS
         run: |
           for i in {1..24}; do
             if ssh -i /tmp/ec2_key.pem -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
-              ${{ needs.infra.outputs.ssh_user }}@${{ needs.infra.outputs.ssh_host }} "echo SSH OK" > /dev/null 2>&1; then
+              ${{ needs.infra.outputs.ssh_user }}@${{ needs.infra.outputs.public_dns }} "echo SSH OK" > /dev/null 2>&1; then
               echo "SSH is ready."
               exit 0
             fi
@@ -167,7 +214,7 @@ jobs:
       - name: Ensure target directory exists
         run: |
           ssh -i /tmp/ec2_key.pem -o StrictHostKeyChecking=no \
-            ${{ needs.infra.outputs.ssh_user }}@${{ needs.infra.outputs.ssh_host }} "
+            ${{ needs.infra.outputs.ssh_user }}@${{ needs.infra.outputs.public_dns }} "
               sudo mkdir -p /opt/btg-funds &&
               sudo mkdir -p /opt/btg-funds/logs &&
               sudo chown -R ${{ needs.infra.outputs.ssh_user }}:${{ needs.infra.outputs.ssh_user }} /opt/btg-funds
@@ -177,12 +224,12 @@ jobs:
         run: |
           scp -i /tmp/ec2_key.pem -o StrictHostKeyChecking=no \
             btg-funds/target/btg-funds.jar \
-            ${{ needs.infra.outputs.ssh_user }}@${{ needs.infra.outputs.ssh_host }}:/opt/btg-funds/btg-funds.jar
+            ${{ needs.infra.outputs.ssh_user }}@${{ needs.infra.outputs.public_dns }}:/opt/btg-funds/btg-funds.jar
 
       - name: Create application.properties
         run: |
           ssh -i /tmp/ec2_key.pem -o StrictHostKeyChecking=no \
-            ${{ needs.infra.outputs.ssh_user }}@${{ needs.infra.outputs.ssh_host }} <<EOF
+            ${{ needs.infra.outputs.ssh_user }}@${{ needs.infra.outputs.public_dns }} <<EOF
           cat > /opt/btg-funds/application.properties <<EOL
           server.port=${{ secrets.SERVER_PORT }}
           spring.application.name=btg-funds
@@ -210,7 +257,7 @@ jobs:
       - name: Create systemd service
         run: |
           ssh -i /tmp/ec2_key.pem -o StrictHostKeyChecking=no \
-            ${{ needs.infra.outputs.ssh_user }}@${{ needs.infra.outputs.ssh_host }} <<EOF
+            ${{ needs.infra.outputs.ssh_user }}@${{ needs.infra.outputs.public_dns }} <<EOF
           sudo tee /etc/systemd/system/btg-funds.service > /dev/null <<EOL
           [Unit]
           Description=BTG Funds API
@@ -232,7 +279,7 @@ jobs:
       - name: Restart service
         run: |
           ssh -i /tmp/ec2_key.pem -o StrictHostKeyChecking=no \
-            ${{ needs.infra.outputs.ssh_user }}@${{ needs.infra.outputs.ssh_host }} "
+            ${{ needs.infra.outputs.ssh_user }}@${{ needs.infra.outputs.public_dns }} "
               sudo systemctl daemon-reload &&
               sudo systemctl enable btg-funds &&
               sudo systemctl restart btg-funds
@@ -241,7 +288,7 @@ jobs:
       - name: Verify deployment
         run: |
           ssh -i /tmp/ec2_key.pem -o StrictHostKeyChecking=no \
-            ${{ needs.infra.outputs.ssh_user }}@${{ needs.infra.outputs.ssh_host }} "
+            ${{ needs.infra.outputs.ssh_user }}@${{ needs.infra.outputs.public_dns }} "
               set -e
 
               echo 'Checking service status...'
