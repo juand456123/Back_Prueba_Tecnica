@@ -107,21 +107,15 @@ jobs:
             exit 1
           fi
 
-          echo "INSTANCE_ID=$INSTANCE_ID"
-
           STATE=$(aws ec2 describe-instances \
             --instance-ids "$INSTANCE_ID" \
             --query "Reservations[0].Instances[0].State.Name" \
             --output text)
 
-          echo "STATE=$STATE"
-
           if [ "$STATE" = "stopped" ] || [ "$STATE" = "stopping" ]; then
-            echo "Starting existing instance $INSTANCE_ID..."
             aws ec2 start-instances --instance-ids "$INSTANCE_ID" >/dev/null
           fi
 
-          echo "Waiting for instance to be running..."
           aws ec2 wait instance-running --instance-ids "$INSTANCE_ID"
 
           for i in {1..30}; do
@@ -145,8 +139,6 @@ jobs:
                 echo "app_url=http://$PUBLIC_IP:$SERVER_PORT"
               } >> "$GITHUB_OUTPUT"
 
-              echo "Resolved public_dns=$PUBLIC_DNS"
-              echo "Resolved public_ip=$PUBLIC_IP"
               exit 0
             fi
 
@@ -154,13 +146,7 @@ jobs:
           done
 
           echo "Public DNS never became available."
-          exit 1
-      - name: Debug resolve_instance outputs
-        run: |
-          echo "public_dns=${{ steps.resolve_instance.outputs.public_dns }}"
-          echo "public_ip=${{ steps.resolve_instance.outputs.public_ip }}"
-          echo "ssh_user=${{ steps.resolve_instance.outputs.ssh_user }}"
-          echo "app_url=${{ steps.resolve_instance.outputs.app_url }}"    
+          exit 1    
 
   deploy:
     name: Build and Deploy Application
