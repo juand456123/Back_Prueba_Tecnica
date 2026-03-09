@@ -9,7 +9,7 @@ on:
       - 'btg-funds/src/**'
       - 'btg-funds/pom.xml'
       - 'btg-funds/mvnw'
-      - '.github/workflows/ci-cd.yml'
+      - '.github/workflows/deploy.yml'
   workflow_dispatch:
 
 jobs:
