@@ -25,7 +25,7 @@ jobs:
 
     outputs:
       public_ip: ${{ steps.tf_outputs.outputs.public_ip }}
-      public_dns: ${{ steps.tf_outputs.outputs.public_dns }}
+      ssh_host: ${{ steps.tf_outputs.outputs.ssh_host }}
       ssh_user: ${{ steps.tf_outputs.outputs.ssh_user }}
       app_url: ${{ steps.tf_outputs.outputs.app_url }}
 
@@ -64,6 +64,26 @@ jobs:
           AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
         run: terraform apply -input=false -auto-approve tfplan
 
+      - name: Wait for Terraform SSH host output
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          for i in {1..18}; do
+            SSH_HOST="$(terraform output -raw ssh_host 2>/dev/null || true)"
+            if [ -n "$SSH_HOST" ]; then
+              echo "SSH host ready: $SSH_HOST"
+              exit 0
+            fi
+            echo "Attempt $i/18 - ssh_host output still empty, waiting 10 seconds..."
+            sleep 10
+          done
+
+          echo "ssh_host output never became available."
+          terraform output || true
+          exit 1
+
       - name: Read Terraform outputs
         id: tf_outputs
         env:
@@ -72,12 +92,17 @@ jobs:
           AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
         run: |
           echo "public_ip=$(terraform output -raw public_ip)" >> "$GITHUB_OUTPUT"
-          echo "public_dns=$(terraform output -raw public_dns)" >> "$GITHUB_OUTPUT"
+          echo "ssh_host=$(terraform output -raw ssh_host)" >> "$GITHUB_OUTPUT"
           echo "ssh_user=$(terraform output -raw ssh_user)" >> "$GITHUB_OUTPUT"
           echo "app_url=$(terraform output -raw app_url)" >> "$GITHUB_OUTPUT"
 
       - name: Show Terraform outputs
-        run: terraform output
+        run: |
+          terraform output
+          echo "PUBLIC_IP=${{ steps.tf_outputs.outputs.public_ip }}"
+          echo "SSH_HOST=${{ steps.tf_outputs.outputs.ssh_host }}"
+          echo "SSH_USER=${{ steps.tf_outputs.outputs.ssh_user }}"
+          echo "APP_URL=${{ steps.tf_outputs.outputs.app_url }}"
 
   deploy:
     name: Build and Deploy Application
@@ -121,19 +146,28 @@ jobs:
 
       - name: Show target host
         run: |
-          echo "Deploying to ${{ needs.infra.outputs.public_dns }}"
+          echo "Deploying to ${{ needs.infra.outputs.ssh_host }}"
           echo "User: ${{ needs.infra.outputs.ssh_user }}"
           echo "App URL: ${{ needs.infra.outputs.app_url }}"
 
-      - name: Test SSH connection
+      - name: Wait for SSH
         run: |
-          ssh -i /tmp/ec2_key.pem -o StrictHostKeyChecking=no \
-            ${{ needs.infra.outputs.ssh_user }}@${{ needs.infra.outputs.public_dns }} "echo SSH OK && whoami"
+          for i in {1..24}; do
+            if ssh -i /tmp/ec2_key.pem -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
+              ${{ needs.infra.outputs.ssh_user }}@${{ needs.infra.outputs.ssh_host }} "echo SSH OK" > /dev/null 2>&1; then
+              echo "SSH is ready."
+              exit 0
+            fi
+            echo "Attempt $i/24 - SSH not ready yet, waiting 10 seconds..."
+            sleep 10
+          done
+          echo "SSH never became available."
+          exit 1
 
       - name: Ensure target directory exists
         run: |
           ssh -i /tmp/ec2_key.pem -o StrictHostKeyChecking=no \
-            ${{ needs.infra.outputs.ssh_user }}@${{ needs.infra.outputs.public_dns }} "
+            ${{ needs.infra.outputs.ssh_user }}@${{ needs.infra.outputs.ssh_host }} "
               sudo mkdir -p /opt/btg-funds &&
               sudo mkdir -p /opt/btg-funds/logs &&
               sudo chown -R ${{ needs.infra.outputs.ssh_user }}:${{ needs.infra.outputs.ssh_user }} /opt/btg-funds
@@ -143,12 +177,12 @@ jobs:
         run: |
           scp -i /tmp/ec2_key.pem -o StrictHostKeyChecking=no \
             btg-funds/target/btg-funds.jar \
-            ${{ needs.infra.outputs.ssh_user }}@${{ needs.infra.outputs.public_dns }}:/opt/btg-funds/btg-funds.jar
+            ${{ needs.infra.outputs.ssh_user }}@${{ needs.infra.outputs.ssh_host }}:/opt/btg-funds/btg-funds.jar
 
       - name: Create application.properties
         run: |
           ssh -i /tmp/ec2_key.pem -o StrictHostKeyChecking=no \
-            ${{ needs.infra.outputs.ssh_user }}@${{ needs.infra.outputs.public_dns }} <<EOF
+            ${{ needs.infra.outputs.ssh_user }}@${{ needs.infra.outputs.ssh_host }} <<EOF
           cat > /opt/btg-funds/application.properties <<EOL
           server.port=${{ secrets.SERVER_PORT }}
           spring.application.name=btg-funds
@@ -176,7 +210,7 @@ jobs:
       - name: Create systemd service
         run: |
           ssh -i /tmp/ec2_key.pem -o StrictHostKeyChecking=no \
-            ${{ needs.infra.outputs.ssh_user }}@${{ needs.infra.outputs.public_dns }} <<EOF
+            ${{ needs.infra.outputs.ssh_user }}@${{ needs.infra.outputs.ssh_host }} <<EOF
           sudo tee /etc/systemd/system/btg-funds.service > /dev/null <<EOL
           [Unit]
           Description=BTG Funds API
@@ -198,7 +232,7 @@ jobs:
       - name: Restart service
         run: |
           ssh -i /tmp/ec2_key.pem -o StrictHostKeyChecking=no \
-            ${{ needs.infra.outputs.ssh_user }}@${{ needs.infra.outputs.public_dns }} "
+            ${{ needs.infra.outputs.ssh_user }}@${{ needs.infra.outputs.ssh_host }} "
               sudo systemctl daemon-reload &&
               sudo systemctl enable btg-funds &&
               sudo systemctl restart btg-funds
@@ -207,7 +241,7 @@ jobs:
       - name: Verify deployment
         run: |
           ssh -i /tmp/ec2_key.pem -o StrictHostKeyChecking=no \
-            ${{ needs.infra.outputs.ssh_user }}@${{ needs.infra.outputs.public_dns }} "
+            ${{ needs.infra.outputs.ssh_user }}@${{ needs.infra.outputs.ssh_host }} "
               set -e
 
               echo 'Checking service status...'
