@@ -13,6 +13,10 @@ jobs:
     runs-on: ubuntu-latest
     environment: produccion
 
+    defaults:
+      run:
+        shell: bash
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -38,34 +42,65 @@ jobs:
           JAR_FILE=$(ls btg-funds/target/*.jar | head -n 1)
           cp "$JAR_FILE" btg-funds/target/btg-funds.jar
 
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        working-directory: btg-funds/infra
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+        run: terraform init
+
+      - name: Terraform Apply
+        working-directory: btg-funds/infra
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+        run: terraform apply -auto-approve
+
+      - name: Get Terraform outputs
+        id: tf_outputs
+        working-directory: btg-funds/infra
+        run: |
+          echo "public_ip=$(terraform output -raw public_ip)" >> $GITHUB_OUTPUT
+          echo "public_dns=$(terraform output -raw public_dns)" >> $GITHUB_OUTPUT
+          echo "ssh_user=$(terraform output -raw ssh_user)" >> $GITHUB_OUTPUT
+          echo "app_url=$(terraform output -raw app_url)" >> $GITHUB_OUTPUT
+
       - name: Write SSH key
         run: |
           echo "${{ secrets.EC2_SSH_KEY }}" | base64 -d > /tmp/ec2_key.pem
-          chmod 600 /tmp/ec2_key.pem
+          chmod 400 /tmp/ec2_key.pem
 
-      - name: Test SSH connection
+      - name: Wait for SSH to become available
         run: |
-          ssh -i /tmp/ec2_key.pem -o StrictHostKeyChecking=no \
-            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "echo SSH OK && whoami"
+          for i in {1..24}; do
+            if ssh -i /tmp/ec2_key.pem -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
+              ${{ steps.tf_outputs.outputs.ssh_user }}@${{ steps.tf_outputs.outputs.public_dns }} "echo SSH OK" >/dev/null 2>&1; then
+              echo "SSH is ready."
+              exit 0
+            fi
 
-      - name: Ensure target directory exists
-        run: |
-          ssh -i /tmp/ec2_key.pem -o StrictHostKeyChecking=no \
-            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "
-              sudo mkdir -p /opt/btg-funds &&
-              sudo chown -R ${{ secrets.EC2_USER }}:${{ secrets.EC2_USER }} /opt/btg-funds
-            "
+            echo "Attempt $i/24 - SSH not ready yet, waiting 10 seconds..."
+            sleep 10
+          done
+
+          echo "SSH connection could not be established in time."
+          exit 1
 
       - name: Copy JAR to EC2
         run: |
           scp -i /tmp/ec2_key.pem -o StrictHostKeyChecking=no \
             btg-funds/target/btg-funds.jar \
-            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/opt/btg-funds/btg-funds.jar
+            ${{ steps.tf_outputs.outputs.ssh_user }}@${{ steps.tf_outputs.outputs.public_dns }}:/opt/btg-funds/btg-funds.jar
 
       - name: Create application.properties
         run: |
           ssh -i /tmp/ec2_key.pem -o StrictHostKeyChecking=no \
-            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} <<EOF
+            ${{ steps.tf_outputs.outputs.ssh_user }}@${{ steps.tf_outputs.outputs.public_dns }} <<EOF
           cat > /opt/btg-funds/application.properties <<EOL
           server.port=${{ secrets.SERVER_PORT }}
           spring.application.name=btg-funds
@@ -91,14 +126,14 @@ jobs:
       - name: Create systemd service
         run: |
           ssh -i /tmp/ec2_key.pem -o StrictHostKeyChecking=no \
-            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} <<EOF
+            ${{ steps.tf_outputs.outputs.ssh_user }}@${{ steps.tf_outputs.outputs.public_dns }} <<EOF
           sudo tee /etc/systemd/system/btg-funds.service > /dev/null <<EOL
           [Unit]
           Description=BTG Funds API
           After=network.target
 
           [Service]
-          User=${{ secrets.EC2_USER }}
+          User=${{ steps.tf_outputs.outputs.ssh_user }}
           WorkingDirectory=/opt/btg-funds
           ExecStart=/usr/bin/java -jar /opt/btg-funds/btg-funds.jar --spring.config.location=file:/opt/btg-funds/application.properties
           SuccessExitStatus=143
@@ -113,7 +148,7 @@ jobs:
       - name: Restart service
         run: |
           ssh -i /tmp/ec2_key.pem -o StrictHostKeyChecking=no \
-            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "
+            ${{ steps.tf_outputs.outputs.ssh_user }}@${{ steps.tf_outputs.outputs.public_dns }} "
               sudo systemctl daemon-reload &&
               sudo systemctl enable btg-funds &&
               sudo systemctl restart btg-funds
@@ -122,7 +157,7 @@ jobs:
       - name: Verify deployment
         run: |
           ssh -i /tmp/ec2_key.pem -o StrictHostKeyChecking=no \
-            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "
+            ${{ steps.tf_outputs.outputs.ssh_user }}@${{ steps.tf_outputs.outputs.public_dns }} "
               set -e
 
               echo 'Checking service status...'

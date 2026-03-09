@@ -1,74 +1,27 @@
 variable "aws_region" {
-  type = string
+  description = "AWS region where the infrastructure will be created"
+  type        = string
 }
 
 variable "instance_type" {
-  type = string
+  description = "EC2 instance type"
+  type        = string
 }
 
 variable "ami_id" {
-  type = string
+  description = "AMI ID for the EC2 instance"
+  type        = string
 }
 
 variable "key_name" {
-  type = string
-}
-
-variable "jar_url" {
-  type = string
-}
-
-variable "mongo_uri" {
-  type = string
-}
-
-variable "jwt_secret" {
-  type      = string
-  sensitive = true
-}
-
-variable "jwt_expiration" {
-  type = string
+  description = "AWS key pair name used to connect to the instance"
+  type        = string
 }
 
 variable "app_port" {
-  type = string
-}
-
-variable "datasource_url" {
-  type = string
-}
-
-variable "datasource_username" {
-  type = string
-}
-
-variable "datasource_password" {
-  type      = string
-  sensitive = true
-}
-
-variable "sendgrid_api_key" {
-  type      = string
-  sensitive = true
-}
-
-variable "sendgrid_from_email" {
-  type = string
-}
-
-variable "twilio_account_sid" {
-  type      = string
-  sensitive = true
-}
-
-variable "twilio_auth_token" {
-  type      = string
-  sensitive = true
-}
-
-variable "twilio_from_number" {
-  type = string
+  description = "Application port exposed by the backend"
+  type        = string
+  default     = "8080"
 }
 
 variable "ssh_cidr" {

@@ -18,6 +18,7 @@ resource "aws_security_group" "btg_sg" {
   description = "Security group for BTG Funds API"
 
   ingress {
+    description = "Allow SSH access"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
@@ -25,13 +26,15 @@ resource "aws_security_group" "btg_sg" {
   }
 
   ingress {
-    from_port   = 8080
-    to_port     = 8080
+    description = "Allow application access on port 8080 from internet"
+    from_port   = tonumber(var.app_port)
+    to_port     = tonumber(var.app_port)
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
   egress {
+    description = "Allow all outbound internet traffic"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
@@ -51,22 +54,7 @@ resource "aws_instance" "btg_api" {
   associate_public_ip_address = true
 
   user_data = templatefile("${path.module}/user-data.sh.tpl", {
-    jar_url            = var.jar_url
-    mongo_uri          = var.mongo_uri
-    jwt_secret         = var.jwt_secret
-    jwt_expiration     = var.jwt_expiration
-    app_port           = var.app_port
-
-    datasource_url      = var.datasource_url
-    datasource_username = var.datasource_username
-    datasource_password = var.datasource_password
-
-    sendgrid_api_key    = var.sendgrid_api_key
-    sendgrid_from_email = var.sendgrid_from_email
-
-    twilio_account_sid  = var.twilio_account_sid
-    twilio_auth_token   = var.twilio_auth_token
-    twilio_from_number  = var.twilio_from_number
+    app_port = var.app_port
   })
 
   tags = {
