@@ -88,8 +88,7 @@ Esto permite crear completamente la **estructura relacional utilizada en la solu
 
 Puedes importar la colección de Postman para probar todos los endpoints de la API.
 
-📦 Descargar colección Postman  
-docs/BTG-Funds-API.postman_collection.json
+📦 [Descargar colección Postman](docs/BTG-Funds-API.postman_collection.json)
 
 ## Uso de la colección
 
