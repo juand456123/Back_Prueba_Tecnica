@@ -40,21 +40,26 @@ jobs:
           echo "${{ secrets.EC2_SSH_KEY }}" | base64 -d > /tmp/ec2_key.pem
           chmod 600 /tmp/ec2_key.pem
 
+      - name: Verify SSH key format
+        run: |
+          ls -l /tmp/ec2_key.pem
+          head -n 2 /tmp/ec2_key.pem
+
       - name: Test SSH connection
         run: |
           ssh -i /tmp/ec2_key.pem -o StrictHostKeyChecking=no \
-            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "echo SSH OK && whoami"
+            ec2-user@ec2-18-216-123-105.us-east-2.compute.amazonaws.com "echo SSH OK && whoami"
 
       - name: Copy JAR to EC2
         run: |
           scp -i /tmp/ec2_key.pem -o StrictHostKeyChecking=no \
             btg-funds/target/btg-funds.jar \
-            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/opt/btg-funds/btg-funds.jar
+            ec2-user@ec2-18-216-123-105.us-east-2.compute.amazonaws.com:/opt/btg-funds/btg-funds.jar
 
       - name: Create application.properties
         run: |
           ssh -i /tmp/ec2_key.pem -o StrictHostKeyChecking=no \
-            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} <<EOF
+            ec2-user@ec2-18-216-123-105.us-east-2.compute.amazonaws.com <<EOF
           cat > /opt/btg-funds/application.properties <<EOL
           server.port=${{ secrets.SERVER_PORT }}
           spring.application.name=btg-funds
@@ -80,7 +85,7 @@ jobs:
       - name: Create systemd service
         run: |
           ssh -i /tmp/ec2_key.pem -o StrictHostKeyChecking=no \
-            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} <<EOF
+            ec2-user@ec2-18-216-123-105.us-east-2.compute.amazonaws.com <<EOF
           sudo tee /etc/systemd/system/btg-funds.service > /dev/null <<EOL
           [Unit]
           Description=BTG Funds API
@@ -102,7 +107,7 @@ jobs:
       - name: Restart service
         run: |
           ssh -i /tmp/ec2_key.pem -o StrictHostKeyChecking=no \
-            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "
+            ec2-user@ec2-18-216-123-105.us-east-2.compute.amazonaws.com "
               sudo systemctl daemon-reload &&
               sudo systemctl enable btg-funds &&
               sudo systemctl restart btg-funds &&
