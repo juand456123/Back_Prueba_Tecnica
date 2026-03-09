@@ -40,11 +40,6 @@ jobs:
           echo "${{ secrets.EC2_SSH_KEY }}" | base64 -d > /tmp/ec2_key.pem
           chmod 600 /tmp/ec2_key.pem
 
-      - name: Verify SSH key format
-        run: |
-          ls -l /tmp/ec2_key.pem
-          head -n 2 /tmp/ec2_key.pem
-
       - name: Test SSH connection
         run: |
           ssh -i /tmp/ec2_key.pem -o StrictHostKeyChecking=no \
@@ -118,14 +113,39 @@ jobs:
             ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "
               sudo systemctl daemon-reload &&
               sudo systemctl enable btg-funds &&
-              sudo systemctl restart btg-funds &&
-              sudo systemctl status btg-funds --no-pager
+              sudo systemctl restart btg-funds
             "
+
       - name: Verify deployment
         run: |
           ssh -i /tmp/ec2_key.pem -o StrictHostKeyChecking=no \
-            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "
-              sleep 10 &&
-              sudo systemctl is-active btg-funds &&
-              curl -f http://localhost:${{ secrets.SERVER_PORT }}/api/funds
-            "      
+            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} '
+              set -e
+
+              echo "Checking service status..."
+              sudo systemctl is-active btg-funds
+
+              echo "Waiting for application to respond on port ${{ secrets.SERVER_PORT }}..."
+
+              for i in {1..18}; do
+                if curl -fsS "http://localhost:${{ secrets.SERVER_PORT }}/api/funds" > /dev/null; then
+                  echo "Application is up and responding."
+                  exit 0
+                fi
+
+                echo "Attempt $i/18 - app not ready yet, waiting 5 seconds..."
+                sleep 5
+
+                if ! sudo systemctl is-active --quiet btg-funds; then
+                  echo "Service is no longer active."
+                  sudo systemctl status btg-funds --no-pager
+                  sudo journalctl -u btg-funds -n 100 --no-pager
+                  exit 1
+                fi
+              done
+
+              echo "Application did not respond in time."
+              sudo systemctl status btg-funds --no-pager
+              sudo journalctl -u btg-funds -n 100 --no-pager
+              exit 1
+            '
