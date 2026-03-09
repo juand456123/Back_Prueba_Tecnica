@@ -119,33 +119,35 @@ jobs:
       - name: Verify deployment
         run: |
           ssh -i /tmp/ec2_key.pem -o StrictHostKeyChecking=no \
-            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} '
+            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "
               set -e
 
-              echo "Checking service status..."
+              echo 'Checking service status...'
               sudo systemctl is-active btg-funds
 
-              echo "Waiting for application to respond on port ${{ secrets.SERVER_PORT }}..."
+              echo 'Waiting for application to respond on port ${{ secrets.SERVER_PORT }}...'
 
               for i in {1..18}; do
-                if curl -fsS "http://localhost:${{ secrets.SERVER_PORT }}/api/funds" > /dev/null; then
-                  echo "Application is up and responding."
+                if curl -fsS -X POST http://localhost:${{ secrets.SERVER_PORT }}/api/auth/login \
+                  -H 'Content-Type: application/json' \
+                  -d '{\"username\":\"${{ secrets.VERIFY_USERNAME }}\",\"password\":\"${{ secrets.VERIFY_PASSWORD }}\"}' > /dev/null; then
+                  echo 'Application is up and login endpoint is responding.'
                   exit 0
                 fi
 
-                echo "Attempt $i/18 - app not ready yet, waiting 5 seconds..."
+                echo \"Attempt \$i/18 - app not ready yet, waiting 5 seconds...\"
                 sleep 5
 
                 if ! sudo systemctl is-active --quiet btg-funds; then
-                  echo "Service is no longer active."
+                  echo 'Service is no longer active.'
                   sudo systemctl status btg-funds --no-pager
                   sudo journalctl -u btg-funds -n 100 --no-pager
                   exit 1
                 fi
               done
 
-              echo "Application did not respond in time."
+              echo 'Application did not respond in time.'
               sudo systemctl status btg-funds --no-pager
               sudo journalctl -u btg-funds -n 100 --no-pager
               exit 1
-            '
+            "
