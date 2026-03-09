@@ -18,7 +18,7 @@ spring:
     name: btg-funds
 
   datasource:
-    url: jdbc:h2:mem:btgfundsdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    url: jdbc:h2:mem:btgfundsdb;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;INIT=CREATE SCHEMA IF NOT EXISTS btg
     username: sa
     password:
     driver-class-name: org.h2.Driver
@@ -30,17 +30,15 @@ spring:
     properties:
       hibernate:
         format_sql: false
-        default_schema: PUBLIC
+        default_schema: btg
     database-platform: org.hibernate.dialect.H2Dialect
 
   sendgrid:
     api-key: test-sendgrid-api-key
     from-email: test@example.com
 
-  autoconfigure:
-    exclude:
-      - org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration
-      - org.springframework.boot.autoconfigure.data.mongo.MongoDataAutoConfiguration
+  mongodb:
+    uri: mongodb://localhost:27017/btgfunds_test
 
 server:
   port: 0
