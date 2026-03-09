@@ -2,7 +2,7 @@
 set -e
 
 dnf update -y
-dnf install -y java-21-amazon-corretto curl
+dnf install -y java-21-amazon-corretto
 
 mkdir -p /opt/btg-funds
 mkdir -p /opt/btg-funds/logs
