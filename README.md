@@ -16,6 +16,58 @@ necesidad de contactar a un asesor, incluyendo:
 
 La solución fue construida con **Spring Boot**, desplegada en **AWS
 EC2**, utilizando **MongoDB Atlas** y **PostgreSQL (Supabase)**.
+
+------------------------------------------------------------------------
+
+# Documentación técnica del despliegue
+
+Para una explicación detallada de la arquitectura, infraestructura y proceso de despliegue implementado en esta solución, consulta el siguiente documento:
+
+📄 **Documento técnico de despliegue**
+
+[Descargar documentación completa](docs/BTG_Funds_Deployment.pdf)
+
+Este documento describe:
+
+- Arquitectura general de la solución
+- Infraestructura implementada con Terraform
+- Pipeline CI/CD con GitHub Actions
+- Proceso de despliegue en AWS EC2
+- Integraciones externas (MongoDB Atlas, PostgreSQL, SendGrid, Twilio)
+- Seguridad con JWT
+
+------------------------------------------------------------------------
+
+# Scripts SQL (PostgreSQL)
+
+La parte correspondiente a la solución SQL de la prueba técnica se encuentra incluida en el repositorio.
+
+Los scripts están organizados en la siguiente ruta:
+
+docs/SQL_Prueba
+
+## Archivos incluidos
+
+- [00_create_database.sql](docs/SQL_Prueba/00_create_database.sql) → creación de la base de datos
+- [01_create_schema.sql](docs/SQL_Prueba/01_create_schema.sql) → creación del esquema
+- [02_create_tables.sql](docs/SQL_Prueba/02_create_tables.sql) → creación de las tablas
+- [03_create_constraints.sql](docs/SQL_Prueba/03_create_constraints.sql) → llaves primarias y foráneas
+- [04_seed_data.sql](docs/SQL_Prueba/04_seed_data.sql) → datos iniciales de prueba
+- [05_queries.sql](docs/SQL_Prueba/05_queries.sql) → consultas solicitadas en la prueba técnica
+
+## Orden de ejecución
+
+Los scripts deben ejecutarse en el siguiente orden:
+
+1. [00_create_database.sql](docs/SQL_Prueba/00_create_database.sql)
+2. [01_create_schema.sql](docs/SQL_Prueba/01_create_schema.sql)
+3. [02_create_tables.sql](docs/SQL_Prueba/02_create_tables.sql)
+4. [03_create_constraints.sql](docs/SQL_Prueba/03_create_constraints.sql)
+5. [04_seed_data.sql](docs/SQL_Prueba/04_seed_data.sql)
+6. [05_queries.sql](docs/SQL_Prueba/05_queries.sql)
+
+Esto permite crear completamente la estructura relacional utilizada en la solución.
+
 ------------------------------------------------------------------------
 
 # Colección de Postman
