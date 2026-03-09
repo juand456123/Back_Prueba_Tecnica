@@ -1,12 +1,13 @@
-name: BTG Funds CI/CD
+name: BTG Funds Deploy
 
 on:
   push:
     branches:
       - main
     paths:
-      - 'btg-funds/**'
-      - '.github/workflows/**'
+      - 'btg-funds/src/**'
+      - 'btg-funds/pom.xml'
+      - '.github/workflows/deploy.yml'
 
 jobs:
   build-and-deploy:
@@ -45,7 +46,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
-      - name: Terraform Init
+      - name: Terraform Init (read outputs only)
         working-directory: btg-funds/infra
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -53,15 +54,7 @@ jobs:
           AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
         run: terraform init
 
-      - name: Terraform Apply
-        working-directory: btg-funds/infra
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
-        run: terraform apply -auto-approve
-
-      - name: Get Terraform outputs
+      - name: Read Terraform outputs
         id: tf_outputs
         working-directory: btg-funds/infra
         run: |
@@ -75,21 +68,19 @@ jobs:
           echo "${{ secrets.EC2_SSH_KEY }}" | base64 -d > /tmp/ec2_key.pem
           chmod 400 /tmp/ec2_key.pem
 
-      - name: Wait for SSH to become available
+      - name: Test SSH connection
         run: |
-          for i in {1..24}; do
-            if ssh -i /tmp/ec2_key.pem -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
-              ${{ steps.tf_outputs.outputs.ssh_user }}@${{ steps.tf_outputs.outputs.public_dns }} "echo SSH OK" >/dev/null 2>&1; then
-              echo "SSH is ready."
-              exit 0
-            fi
+          ssh -i /tmp/ec2_key.pem -o StrictHostKeyChecking=no \
+            ${{ steps.tf_outputs.outputs.ssh_user }}@${{ steps.tf_outputs.outputs.public_dns }} "echo SSH OK && whoami"
 
-            echo "Attempt $i/24 - SSH not ready yet, waiting 10 seconds..."
-            sleep 10
-          done
-
-          echo "SSH connection could not be established in time."
-          exit 1
+      - name: Ensure target directory exists
+        run: |
+          ssh -i /tmp/ec2_key.pem -o StrictHostKeyChecking=no \
+            ${{ steps.tf_outputs.outputs.ssh_user }}@${{ steps.tf_outputs.outputs.public_dns }} "
+              sudo mkdir -p /opt/btg-funds &&
+              sudo mkdir -p /opt/btg-funds/logs &&
+              sudo chown -R ${{ steps.tf_outputs.outputs.ssh_user }}:${{ steps.tf_outputs.outputs.ssh_user }} /opt/btg-funds
+            "
 
       - name: Copy JAR to EC2
         run: |

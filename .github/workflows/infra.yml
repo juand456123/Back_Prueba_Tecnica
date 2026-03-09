@@ -1,0 +1,57 @@
+name: BTG Funds Infra
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'btg-funds/infra/**'
+      - '.github/workflows/infra.yml'
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    environment: produccion
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        working-directory: btg-funds/infra
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+        run: terraform init
+
+      - name: Terraform Validate
+        working-directory: btg-funds/infra
+        run: terraform validate
+
+      - name: Terraform Plan
+        working-directory: btg-funds/infra
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+        run: terraform plan -out=tfplan
+
+      - name: Terraform Apply
+        working-directory: btg-funds/infra
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+        run: terraform apply -auto-approve tfplan
+
+      - name: Show Terraform Outputs
+        working-directory: btg-funds/infra
+        run: terraform output
