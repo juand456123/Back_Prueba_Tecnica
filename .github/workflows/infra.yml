@@ -26,6 +26,13 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
+      - name: Debug files
+        run: |
+          echo "PWD: $(pwd)"
+          ls -la
+          echo "----- terraform.tfvars -----"
+          cat terraform.tfvars
+
       - name: Terraform Init
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -45,7 +52,7 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
-        run: terraform plan -input=false -out=tfplan
+        run: terraform plan -input=false -var-file="terraform.tfvars" -out=tfplan
 
       - name: Terraform Apply
         env:
