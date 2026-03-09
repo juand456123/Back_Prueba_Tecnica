@@ -121,3 +121,11 @@ jobs:
               sudo systemctl restart btg-funds &&
               sudo systemctl status btg-funds --no-pager
             "
+      - name: Verify deployment
+        run: |
+          ssh -i /tmp/ec2_key.pem -o StrictHostKeyChecking=no \
+            ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "
+              sleep 10 &&
+              sudo systemctl is-active btg-funds &&
+              curl -f http://localhost:${{ secrets.SERVER_PORT }}/api/funds
+            "      
