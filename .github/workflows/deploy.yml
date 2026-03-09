@@ -132,13 +132,10 @@ jobs:
             echo "Attempt $i/30 - PUBLIC_DNS=$PUBLIC_DNS - PUBLIC_IP=$PUBLIC_IP"
 
             if [ "$PUBLIC_DNS" != "None" ] && [ -n "$PUBLIC_DNS" ]; then
-              {
-                echo "public_dns=$PUBLIC_DNS"
-                echo "public_ip=$PUBLIC_IP"
-                echo "ssh_user=ec2-user"
-                echo "app_url=http://$PUBLIC_IP:$SERVER_PORT"
-              } >> "$GITHUB_OUTPUT"
-
+              echo "public_dns=$PUBLIC_DNS" >> "$GITHUB_OUTPUT"
+              echo "public_ip=$PUBLIC_IP" >> "$GITHUB_OUTPUT"
+              echo "ssh_user=ec2-user" >> "$GITHUB_OUTPUT"
+              echo "app_url=http://$PUBLIC_IP:$SERVER_PORT" >> "$GITHUB_OUTPUT"
               exit 0
             fi
 
@@ -146,13 +143,18 @@ jobs:
           done
 
           echo "Public DNS never became available."
-          exit 1    
+          exit 1
 
   deploy:
     name: Build and Deploy Application
     runs-on: ubuntu-latest
     environment: produccion
     needs: infra
+    env:
+      PUBLIC_DNS: ${{ needs.infra.outputs.public_dns }}
+      PUBLIC_IP: ${{ needs.infra.outputs.public_ip }}
+      SSH_USER: ${{ needs.infra.outputs.ssh_user }}
+      APP_URL: ${{ needs.infra.outputs.app_url }}
 
     steps:
       - name: Checkout repository
@@ -181,15 +183,15 @@ jobs:
 
       - name: Show resolved infra values
         run: |
-          echo "PUBLIC_DNS=${{ needs.infra.outputs.public_dns }}"
-          echo "PUBLIC_IP=${{ needs.infra.outputs.public_ip }}"
-          echo "SSH_USER=${{ needs.infra.outputs.ssh_user }}"
-          echo "APP_URL=${{ needs.infra.outputs.app_url }}"
+          echo "PUBLIC_DNS=$PUBLIC_DNS"
+          echo "PUBLIC_IP=$PUBLIC_IP"
+          echo "SSH_USER=$SSH_USER"
+          echo "APP_URL=$APP_URL"
 
       - name: Validate resolved values
         run: |
-          test -n "${{ needs.infra.outputs.public_dns }}"
-          test -n "${{ needs.infra.outputs.ssh_user }}"
+          test -n "$PUBLIC_DNS"
+          test -n "$SSH_USER"
 
       - name: Write SSH key
         run: |
@@ -200,7 +202,7 @@ jobs:
         run: |
           for i in {1..24}; do
             if ssh -i /tmp/ec2_key.pem -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
-              ${{ needs.infra.outputs.ssh_user }}@${{ needs.infra.outputs.public_dns }} "echo SSH OK" > /dev/null 2>&1; then
+              "$SSH_USER@$PUBLIC_DNS" "echo SSH OK" > /dev/null 2>&1; then
               echo "SSH is ready."
               exit 0
             fi
@@ -213,22 +215,22 @@ jobs:
       - name: Ensure target directory exists
         run: |
           ssh -i /tmp/ec2_key.pem -o StrictHostKeyChecking=no \
-            ${{ needs.infra.outputs.ssh_user }}@${{ needs.infra.outputs.public_dns }} "
+            "$SSH_USER@$PUBLIC_DNS" "
               sudo mkdir -p /opt/btg-funds &&
               sudo mkdir -p /opt/btg-funds/logs &&
-              sudo chown -R ${{ needs.infra.outputs.ssh_user }}:${{ needs.infra.outputs.ssh_user }} /opt/btg-funds
+              sudo chown -R $SSH_USER:$SSH_USER /opt/btg-funds
             "
 
       - name: Copy JAR to EC2
         run: |
           scp -i /tmp/ec2_key.pem -o StrictHostKeyChecking=no \
             btg-funds/target/btg-funds.jar \
-            ${{ needs.infra.outputs.ssh_user }}@${{ needs.infra.outputs.public_dns }}:/opt/btg-funds/btg-funds.jar
+            "$SSH_USER@$PUBLIC_DNS:/opt/btg-funds/btg-funds.jar"
 
       - name: Create application.properties
         run: |
           ssh -i /tmp/ec2_key.pem -o StrictHostKeyChecking=no \
-            ${{ needs.infra.outputs.ssh_user }}@${{ needs.infra.outputs.public_dns }} <<EOF
+            "$SSH_USER@$PUBLIC_DNS" <<EOF
           cat > /opt/btg-funds/application.properties <<EOL
           server.port=${{ secrets.SERVER_PORT }}
           spring.application.name=btg-funds
@@ -256,14 +258,14 @@ jobs:
       - name: Create systemd service
         run: |
           ssh -i /tmp/ec2_key.pem -o StrictHostKeyChecking=no \
-            ${{ needs.infra.outputs.ssh_user }}@${{ needs.infra.outputs.public_dns }} <<EOF
+            "$SSH_USER@$PUBLIC_DNS" <<EOF
           sudo tee /etc/systemd/system/btg-funds.service > /dev/null <<EOL
           [Unit]
           Description=BTG Funds API
           After=network.target
 
           [Service]
-          User=${{ needs.infra.outputs.ssh_user }}
+          User=$SSH_USER
           WorkingDirectory=/opt/btg-funds
           ExecStart=/usr/bin/java -jar /opt/btg-funds/btg-funds.jar --spring.config.location=file:/opt/btg-funds/application.properties
           SuccessExitStatus=143
@@ -278,7 +280,7 @@ jobs:
       - name: Restart service
         run: |
           ssh -i /tmp/ec2_key.pem -o StrictHostKeyChecking=no \
-            ${{ needs.infra.outputs.ssh_user }}@${{ needs.infra.outputs.public_dns }} "
+            "$SSH_USER@$PUBLIC_DNS" "
               sudo systemctl daemon-reload &&
               sudo systemctl enable btg-funds &&
               sudo systemctl restart btg-funds
@@ -287,7 +289,7 @@ jobs:
       - name: Verify deployment
         run: |
           ssh -i /tmp/ec2_key.pem -o StrictHostKeyChecking=no \
-            ${{ needs.infra.outputs.ssh_user }}@${{ needs.infra.outputs.public_dns }} "
+            "$SSH_USER@$PUBLIC_DNS" "
               set -e
               sudo systemctl is-active btg-funds
 
