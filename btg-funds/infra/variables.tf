@@ -29,3 +29,9 @@ variable "ssh_cidr" {
   type        = string
   default     = "0.0.0.0/0"
 }
+
+variable "existing_security_group_name" {
+  description = "Existing Security Group name to reuse instead of creating a new one"
+  type        = string
+  default     = "btg-funds-sg"
+}

@@ -13,7 +13,17 @@ provider "aws" {
   region = var.aws_region
 }
 
+data "aws_security_group" "existing_btg_sg" {
+  count = var.existing_security_group_name != "" ? 1 : 0
+
+  filter {
+    name   = "group-name"
+    values = [var.existing_security_group_name]
+  }
+}
+
 resource "aws_security_group" "btg_sg" {
+  count       = var.existing_security_group_name == "" ? 1 : 0
   name        = "btg-funds-sg"
   description = "Security group for BTG Funds API"
 
@@ -46,11 +56,15 @@ resource "aws_security_group" "btg_sg" {
   }
 }
 
+locals {
+  security_group_id = var.existing_security_group_name != "" ? data.aws_security_group.existing_btg_sg[0].id : aws_security_group.btg_sg[0].id
+}
+
 resource "aws_instance" "btg_api" {
   ami                         = var.ami_id
   instance_type               = var.instance_type
   key_name                    = var.key_name
-  vpc_security_group_ids      = [aws_security_group.btg_sg.id]
+  vpc_security_group_ids      = [local.security_group_id]
   associate_public_ip_address = true
 
   user_data = templatefile("${path.module}/user-data.sh.tpl", {
