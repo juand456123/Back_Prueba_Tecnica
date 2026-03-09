@@ -67,7 +67,7 @@ jacoco.exec
 **/.terraform/*
 *.tfstate
 *.tfstate.*
-*.tfvars
+# *.tfvars
 *.tfplan
 crash.log
 override.tf
