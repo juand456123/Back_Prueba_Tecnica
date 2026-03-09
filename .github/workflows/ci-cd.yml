@@ -1,15 +1,12 @@
-name: BTG Funds CI
+name: BTG Funds CI/CD
 
 on:
   push:
     branches:
       - main
-  pull_request:
-    branches:
-      - main
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
@@ -32,8 +29,60 @@ jobs:
       - name: Build project
         run: cd btg-funds && ./mvnw clean package -DskipTests
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - name: Rename artifact
+        run: |
+          JAR_FILE=$(ls btg-funds/target/*.jar | head -n 1)
+          cp "$JAR_FILE" btg-funds/target/btg-funds.jar
+
+      - name: Start SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
         with:
-          name: btg-funds-jar
-          path: btg-funds/target/*.jar
+          ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
+
+      - name: Add EC2 to known_hosts
+        run: ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Copy JAR to EC2
+        run: |
+          scp btg-funds/target/btg-funds.jar \
+          ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/opt/btg-funds/btg-funds.jar
+
+      - name: Create application.properties
+        run: |
+          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+          cat > /opt/btg-funds/application.properties << EOL
+server.port=${{ secrets.SERVER_PORT }}
+
+spring.application.name=btg-funds
+
+spring.mongodb.uri=${{ secrets.MONGODB_URI }}
+
+spring.datasource.url=${{ secrets.DB_URL }}
+spring.datasource.username=${{ secrets.DB_USERNAME }}
+spring.datasource.password=${{ secrets.DB_PASSWORD }}
+spring.datasource.driver-class-name=org.postgresql.Driver
+
+spring.jpa.hibernate.ddl-auto=none
+spring.jpa.show-sql=true
+spring.jpa.properties.hibernate.format_sql=true
+spring.jpa.properties.hibernate.default_schema=btg
+
+spring.sendgrid.api-key=${{ secrets.SENDGRID_API_KEY }}
+spring.sendgrid.from-email=${{ secrets.SENDGRID_FROM_EMAIL }}
+
+jwt.secret=${{ secrets.JWT_SECRET }}
+jwt.expiration=${{ secrets.JWT_EXPIRATION }}
+
+twilio.account-sid=${{ secrets.TWILIO_ACCOUNT_SID }}
+twilio.auth-token=${{ secrets.TWILIO_AUTH_TOKEN }}
+twilio.from-number=${{ secrets.TWILIO_FROM_NUMBER }}
+EOL
+          EOF
+
+      - name: Restart service
+        run: |
+          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+          sudo systemctl daemon-reload
+          sudo systemctl restart btg-funds
+          sudo systemctl status btg-funds --no-pager
+          EOF
