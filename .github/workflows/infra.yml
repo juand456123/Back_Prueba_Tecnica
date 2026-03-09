@@ -7,6 +7,7 @@ on:
     paths:
       - 'btg-funds/infra/**'
       - '.github/workflows/infra.yml'
+  workflow_dispatch:
 
 jobs:
   terraform:
@@ -16,6 +17,7 @@ jobs:
     defaults:
       run:
         shell: bash
+        working-directory: btg-funds/infra
 
     steps:
       - name: Checkout repository
@@ -25,15 +27,20 @@ jobs:
         uses: hashicorp/setup-terraform@v3
 
       - name: Terraform Init
-        working-directory: btg-funds/infra
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
         run: terraform init -input=false
 
+      - name: Terraform Validate
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+        run: terraform validate
+
       - name: Terraform Plan
-        working-directory: btg-funds/infra
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -41,9 +48,15 @@ jobs:
         run: terraform plan -input=false -out=tfplan
 
       - name: Terraform Apply
-        working-directory: btg-funds/infra
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
         run: terraform apply -input=false -auto-approve tfplan
+
+      - name: Show Terraform Outputs
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+        run: terraform output
