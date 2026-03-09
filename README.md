@@ -3,6 +3,8 @@
 API desarrollada como solución para la **Prueba Técnica Backend -- BTG
 Pactual**.
 
+Nota:“Este repositorio no corresponde a código oficial de BTG Pactual, únicamente corresponde a una prueba técnica personal.”
+
 El sistema permite a los clientes gestionar sus fondos de inversión sin
 necesidad de contactar a un asesor, incluyendo:
 
