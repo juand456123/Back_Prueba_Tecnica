@@ -9,7 +9,7 @@ on:
       - 'btg-funds/src/**'
       - 'btg-funds/pom.xml'
       - 'btg-funds/mvnw'
-      - '.github/workflows/deploy.yml'
+      - '.github/workflows/ci-cd.yml'
   workflow_dispatch:
 
 jobs:
@@ -17,10 +17,6 @@ jobs:
     name: Resolve or Provision Infrastructure
     runs-on: ubuntu-latest
     environment: produccion
-
-    defaults:
-      run:
-        shell: bash
 
     outputs:
       public_dns: ${{ steps.resolve_instance.outputs.public_dns }}
@@ -140,7 +136,9 @@ jobs:
               echo "public_ip=$PUBLIC_IP" >> "$GITHUB_OUTPUT"
               echo "ssh_user=ec2-user" >> "$GITHUB_OUTPUT"
               echo "app_url=http://$PUBLIC_IP:$SERVER_PORT" >> "$GITHUB_OUTPUT"
-              echo "Resolved DNS: $PUBLIC_DNS"
+
+              echo "Resolved public_dns=$PUBLIC_DNS"
+              echo "Resolved public_ip=$PUBLIC_IP"
               exit 0
             fi
 
@@ -156,10 +154,6 @@ jobs:
     runs-on: ubuntu-latest
     environment: produccion
     needs: infra
-
-    defaults:
-      run:
-        shell: bash
 
     steps:
       - name: Checkout repository
@@ -186,16 +180,22 @@ jobs:
           JAR_FILE=$(ls btg-funds/target/*.jar | head -n 1)
           cp "$JAR_FILE" btg-funds/target/btg-funds.jar
 
+      - name: Show resolved infra values
+        run: |
+          echo "PUBLIC_DNS=${{ needs.infra.outputs.public_dns }}"
+          echo "PUBLIC_IP=${{ needs.infra.outputs.public_ip }}"
+          echo "SSH_USER=${{ needs.infra.outputs.ssh_user }}"
+          echo "APP_URL=${{ needs.infra.outputs.app_url }}"
+
+      - name: Validate resolved values
+        run: |
+          test -n "${{ needs.infra.outputs.public_dns }}"
+          test -n "${{ needs.infra.outputs.ssh_user }}"
+
       - name: Write SSH key
         run: |
           echo "${{ secrets.EC2_SSH_KEY }}" | base64 -d > /tmp/ec2_key.pem
           chmod 400 /tmp/ec2_key.pem
-
-      - name: Show target host
-        run: |
-          echo "Deploying to DNS: ${{ needs.infra.outputs.public_dns }}"
-          echo "User: ${{ needs.infra.outputs.ssh_user }}"
-          echo "App URL: ${{ needs.infra.outputs.app_url }}"
 
       - name: Wait for SSH on public DNS
         run: |
@@ -290,11 +290,7 @@ jobs:
           ssh -i /tmp/ec2_key.pem -o StrictHostKeyChecking=no \
             ${{ needs.infra.outputs.ssh_user }}@${{ needs.infra.outputs.public_dns }} "
               set -e
-
-              echo 'Checking service status...'
               sudo systemctl is-active btg-funds
-
-              echo 'Waiting for application to respond on port ${{ secrets.SERVER_PORT }}...'
 
               for i in {1..18}; do
                 if curl -fsS http://localhost:${{ secrets.SERVER_PORT }}/actuator/health > /dev/null; then
@@ -306,14 +302,12 @@ jobs:
                 sleep 5
 
                 if ! sudo systemctl is-active --quiet btg-funds; then
-                  echo 'Service is no longer active.'
                   sudo systemctl status btg-funds --no-pager
                   sudo journalctl -u btg-funds -n 100 --no-pager
                   exit 1
                 fi
               done
 
-              echo 'Application did not respond in time.'
               sudo systemctl status btg-funds --no-pager
               sudo journalctl -u btg-funds -n 100 --no-pager
               exit 1
