@@ -20,9 +20,42 @@ EC2**, utilizando **MongoDB Atlas** y **PostgreSQL (Supabase)**.
 
 # Colección de Postman
 
-Puedes importar la colección de Postman para probar todos los endpoints:
+Puedes importar la colección de Postman para probar todos los endpoints de la API.
 
-[Descargar colección Postman](docs/BTG Funds API.postman_collection.json)
+[Descargar colección Postman](docs/BTG-Funds-API.postman_collection.json)
+
+## Uso de la colección
+
+La colección incluye **variables configurables** para facilitar las pruebas de los endpoints.
+
+### Paso 1 – Generar el token
+
+Primero debes ejecutar el endpoint de **login** para generar el token JWT.
+
+POST /api/auth/login
+
+Ejemplo de credenciales:
+
+{
+  "username": "revisar collection",
+  "password": "revisar collection"
+}
+
+### Paso 2 – Guardar el token
+
+Una vez generado el token:
+
+1. Copiar el valor del token devuelto por el endpoint.
+2. Asignarlo a la variable **token** dentro de la colección de Postman.
+
+### Paso 3 – Probar el resto de endpoints
+
+Después de configurar la variable `token`, podrás ejecutar los demás endpoints protegidos de la API.
+
+### Expiración del token
+
+El token JWT generado tiene una **vigencia de 24 horas**.  
+Una vez expirado, será necesario generar uno nuevo utilizando nuevamente el endpoint de login.
 
 ------------------------------------------------------------------------
 
