@@ -26,12 +26,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
-      - name: Debug files
-        run: |
-          echo "PWD: $(pwd)"
-          ls -la
-          echo "----- terraform.tfvars -----"
-          cat terraform.tfvars
+      
 
       - name: Terraform Init
         env:
