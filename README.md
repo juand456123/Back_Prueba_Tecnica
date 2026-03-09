@@ -64,25 +64,23 @@ docs/SQL_Prueba
 
 ## Archivos incluidos
 
-- 00_create_database.sql → creación de la base de datos
-- 01_create_schema.sql → creación del esquema
-- 02_create_tables.sql → creación de tablas
-- 03_create_constraints.sql → llaves primarias y foráneas
-- 04_seed_data.sql → datos iniciales de prueba
-- 05_queries.sql → consultas solicitadas en la prueba técnica
+- [00_create_database.sql](docs/SQL_Prueba/00_create_database.sql) → creación de la base de datos  
+- [01_create_schema.sql](docs/SQL_Prueba/01_create_schema.sql) → creación del esquema  
+- [02_create_tables.sql](docs/SQL_Prueba/02_create_tables.sql) → creación de tablas  
+- [03_create_constraints.sql](docs/SQL_Prueba/03_create_constraints.sql) → llaves primarias y foráneas  
+- [04_seed_data.sql](docs/SQL_Prueba/04_seed_data.sql) → datos iniciales de prueba  
+- [05_queries.sql](docs/SQL_Prueba/05_queries.sql) → consultas solicitadas en la prueba técnica  
 
 ## Orden de ejecución
 
-1. 00_create_database.sql
-2. 01_create_schema.sql
-3. 02_create_tables.sql
-4. 03_create_constraints.sql
-5. 04_seed_data.sql
-6. 05_queries.sql
+1. [00_create_database.sql](docs/SQL_Prueba/00_create_database.sql)  
+2. [01_create_schema.sql](docs/SQL_Prueba/01_create_schema.sql)  
+3. [02_create_tables.sql](docs/SQL_Prueba/02_create_tables.sql)  
+4. [03_create_constraints.sql](docs/SQL_Prueba/03_create_constraints.sql)  
+5. [04_seed_data.sql](docs/SQL_Prueba/04_seed_data.sql)  
+6. [05_queries.sql](docs/SQL_Prueba/05_queries.sql)  
 
 Esto permite crear completamente la **estructura relacional utilizada en la solución**.
-
----
 
 # Colección de Postman
 
