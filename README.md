@@ -16,6 +16,13 @@ necesidad de contactar a un asesor, incluyendo:
 
 La solución fue construida con **Spring Boot**, desplegada en **AWS
 EC2**, utilizando **MongoDB Atlas** y **PostgreSQL (Supabase)**.
+------------------------------------------------------------------------
+
+# Colección de Postman
+
+Puedes importar la colección de Postman para probar todos los endpoints:
+
+[Descargar colección Postman](docs/BTG Funds API.postman_collection.json)
 
 ------------------------------------------------------------------------
 
