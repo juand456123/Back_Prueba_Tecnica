@@ -1,34 +1,97 @@
 # BTG Funds API
 
 API desarrollada como solución para la **Prueba Técnica Backend -- BTG
-Pactual**.\
-El sistema permite a los clientes gestionar sus fondos de inversión sin
-necesidad de contactar a un asesor.
+Pactual**.
 
-La aplicación permite:
+El sistema permite a los clientes gestionar sus fondos de inversión sin
+necesidad de contactar a un asesor, incluyendo:
 
 -   Suscribirse a fondos de inversión
 -   Cancelar suscripciones
 -   Consultar historial de transacciones
--   Enviar notificaciones por **Email o SMS** según la preferencia del
+-   Recibir notificaciones por **Email o SMS** según la preferencia del
     cliente
 
-La solución está construida con **Spring Boot**, desplegada en **AWS
+La solución fue construida con **Spring Boot**, desplegada en **AWS
 EC2**, utilizando **MongoDB Atlas** y **PostgreSQL (Supabase)**.
 
 ------------------------------------------------------------------------
 
 # API desplegada
 
-La aplicación se encuentra desplegada en AWS EC2:
+Actualmente existen **dos entornos de despliegue** utilizados durante el
+desarrollo de la prueba técnica.
 
-http://3.143.228.168:8080
+## Entorno con CI/CD (RECOMENDADO)
+
+Instancia EC2 utilizada para despliegues automáticos mediante **GitHub
+Actions**.
+
+Este entorno contiene la **versión más actualizada del sistema**,
+incluyendo:
+
+-   Pruebas automatizadas
+-   Documentación Swagger
+-   Último empaquetado de la aplicación
+
+URL base:
+
+http://18.216.123.105:8080
 
 Ejemplo de endpoint:
 
-http://3.143.228.168:8080/api/funds
+http://18.216.123.105:8080/api/funds
 
-Puedes probar la API directamente desde **Postman** o **curl**.
+### Documentación Swagger (habilitada)
+
+La documentación de la API se encuentra disponible en:
+
+http://18.216.123.105:8080/swagger-ui/index.html#/
+
+### Recomendación
+
+Se recomienda utilizar **este entorno** para probar la API, ya que
+corresponde al **despliegue más reciente generado mediante CI/CD**,
+incluyendo pruebas automatizadas y documentación completa.
+
+------------------------------------------------------------------------
+
+## Entorno creado con Terraform (infraestructura manual)
+
+Instancia EC2 creada mediante **Terraform** para demostrar el
+aprovisionamiento de infraestructura como código.
+
+URL:
+
+http://18.222.254.254:8080
+
+Ejemplo de endpoint:
+
+http://18.222.254.254:8080/api/funds
+
+### Nota
+
+Este entorno corresponde a una **versión inicial del despliegue**,
+utilizada únicamente para validar el aprovisionamiento de
+infraestructura.
+
+Este despliegue **no incluye Swagger ni el empaquetado final con
+pruebas**, ya que fue utilizado en las primeras pruebas de
+infraestructura antes de implementar el pipeline CI/CD.
+
+------------------------------------------------------------------------
+
+## Consideraciones sobre la IP
+
+Estas instancias utilizan **direcciones IP públicas dinámicas**.
+
+Debido a que se están utilizando **recursos gratuitos (AWS Free Tier)**
+para evitar costos en la nube, las instancias se apagan cuando no están
+en uso.
+
+Cuando una instancia se vuelve a iniciar, **AWS puede asignar una nueva
+dirección IP pública**, por lo que las direcciones indicadas pueden
+cambiar.
 
 ------------------------------------------------------------------------
 
@@ -45,60 +108,120 @@ https://github.com/juand456123/Back_Prueba_Tecnica
 ## Backend
 
 -   Java 21
--   Spring Boot 4
+-   Spring Boot
 -   Spring Security
 -   JWT Authentication
 -   Spring Data MongoDB
 -   Spring Data JPA
 -   Maven
+-   Swagger / OpenAPI
 
-## Bases de datos
+------------------------------------------------------------------------
 
-### MongoDB Atlas
+# Bases de datos
 
-Utilizada para almacenar:
+## MongoDB Atlas
 
--   clientes
+Utilizada para almacenar la información principal del negocio:
+
 -   fondos
+-   clientes
 -   suscripciones
 -   transacciones
 -   notificaciones
+-   usuarios
 
-### PostgreSQL (Supabase)
+## PostgreSQL (Supabase)
 
-Utilizada para persistencia relacional.
+Utilizada para la parte relacional de la prueba técnica y persistencia
+SQL complementaria.
 
 ------------------------------------------------------------------------
 
 # Servicios externos
 
-### SendGrid
+## SendGrid
 
 Servicio utilizado para el envío de **notificaciones por correo
 electrónico**.
 
-### Twilio
+## Twilio
 
 Servicio utilizado para el envío de **notificaciones SMS**.
 
 ------------------------------------------------------------------------
 
-# Infraestructura
+# Arquitectura CI/CD
 
-La aplicación se encuentra desplegada en **AWS EC2**.
+Este es el **mecanismo principal utilizado para el despliegue de la
+aplicación**.
 
-La infraestructura fue aprovisionada utilizando:
+![Arquitectura CI/CD](docs/architecture-cicd.png)
 
--   AWS EC2
--   Terraform
--   Linux (Amazon Linux)
--   systemd
+### Flujo del pipeline
 
-La aplicación se ejecuta como servicio del sistema:
+1.  Push al repositorio
+2.  GitHub Actions ejecuta el pipeline
+3.  Build del proyecto con Maven
+4.  Ejecución de pruebas
+5.  Generación del artefacto `.jar`
+6.  Conexión SSH a la instancia EC2
+7.  Copia del nuevo artefacto
+8.  Reinicio automático del servicio
+
+Este enfoque permite mantener **una única instancia EC2 actualizada
+automáticamente**.
+
+------------------------------------------------------------------------
+
+# Arquitectura Terraform
+
+Terraform se utilizó para demostrar el aprovisionamiento de
+infraestructura como código.
+
+![Arquitectura Terraform](docs/architecture-terraform.png)
+
+Terraform permite:
+
+-   crear infraestructura reproducible
+-   aprovisionar instancias EC2
+-   configurar recursos base en AWS
+
+Sin embargo, Terraform está orientado principalmente a
+**infraestructura**, no a despliegue continuo de aplicaciones.
+
+### Consideraciones
+
+Con Terraform:
+
+-   normalmente se **crea una nueva instancia** cuando se aplica
+    infraestructura
+-   no está pensado para **reemplazar únicamente el JAR de una
+    aplicación**
+-   el artefacto debe subirse previamente a **S3** o copiarse
+    manualmente
+-   el redeploy puede implicar reprovisionamiento
+
+Por esta razón Terraform fue utilizado principalmente para
+**provisionamiento inicial**.
+
+------------------------------------------------------------------------
+
+# Infraestructura actual
+
+La aplicación se ejecuta sobre:
+
+-   **AWS EC2**
+-   **MongoDB Atlas**
+-   **PostgreSQL (Supabase)**
+-   **GitHub Actions (CI/CD)**
+-   **systemd** para ejecutar la aplicación
+
+Servicio Linux:
 
 btg-funds.service
 
-El artefacto de la aplicación se encuentra en:
+Ubicación del artefacto:
 
 /opt/btg-funds/btg-funds.jar
 
@@ -107,7 +230,7 @@ El artefacto de la aplicación se encuentra en:
 # Arquitectura del proyecto
 
 El proyecto sigue una arquitectura basada en **capas (Layered
-Architecture)** separando responsabilidades.
+Architecture)**.
 
 src/main/java/com/btg/btg_funds
 
@@ -122,18 +245,9 @@ security → Configuración JWT y seguridad\
 exception → Manejo global de errores\
 notification → Integración con SendGrid y Twilio
 
-Clase principal de arranque:
+Clase principal:
 
 BtgFundsApplication.java
-
-------------------------------------------------------------------------
-
-# Estructura del proyecto
-
-BTG-FUNDS │ ├── infra │ ├── src │ └── main │ └── java/com/btg/btg_funds
-│ ├── config │ ├── controller │ ├── document │ ├── dto │ ├── entity │
-├── exception │ ├── notification │ ├── repository │ ├── security │ ├──
-service │ └── BtgFundsApplication.java │ ├── pom.xml └── README.md
 
 ------------------------------------------------------------------------
 
@@ -154,7 +268,7 @@ Para suscribirse a un fondo:
 -   el cliente debe tener saldo suficiente
 -   cada fondo tiene un monto mínimo de vinculación
 
-Si el cliente no tiene saldo suficiente se retorna el mensaje:
+Si no hay saldo suficiente:
 
 No tiene saldo disponible para vincularse al fondo
 `<Nombre del fondo>`{=html}
@@ -174,8 +288,8 @@ Cuando el cliente cancela su suscripción:
 Cuando un cliente se suscribe a un fondo se envía una notificación
 mediante:
 
--   Email (SendGrid)
--   SMS (Twilio)
+-   Email
+-   SMS
 
 dependiendo de la preferencia configurada por el cliente.
 
@@ -186,10 +300,6 @@ dependiendo de la preferencia configurada por el cliente.
 ## Obtener fondos disponibles
 
 GET /api/funds
-
-Ejemplo:
-
-GET http://3.143.228.168:8080/api/funds
 
 ------------------------------------------------------------------------
 
@@ -217,57 +327,43 @@ Request:
 
 GET /api/subscriptions/transactions/{clientId}
 
-Ejemplo:
-
-GET /api/subscriptions/transactions/123
-
 ------------------------------------------------------------------------
 
 # Ejecutar el proyecto localmente
 
-## 1. Clonar el repositorio
+## 1 Clonar el repositorio
 
 git clone https://github.com/juand456123/Back_Prueba_Tecnica
 
-------------------------------------------------------------------------
-
-## 2. Entrar al proyecto
+## 2 Entrar al proyecto
 
 cd Back_Prueba_Tecnica
 
-------------------------------------------------------------------------
-
-## 3. Compilar el proyecto
+## 3 Compilar el proyecto
 
 mvn clean install
 
-------------------------------------------------------------------------
-
-## 4. Ejecutar la aplicación
+## 4 Ejecutar la aplicación
 
 mvn spring-boot:run
 
-o ejecutando el jar:
+o
 
 java -jar target/btg-funds-0.0.1-SNAPSHOT.jar
 
 ------------------------------------------------------------------------
 
-# Comandos útiles en la instancia EC2
+# Comandos útiles en EC2
 
-## Ver estado del servicio
+Ver estado del servicio
 
 sudo systemctl status btg-funds
 
-------------------------------------------------------------------------
-
-## Ver logs de la aplicación
+Ver logs
 
 sudo journalctl -u btg-funds -f
 
-------------------------------------------------------------------------
-
-## Reiniciar el servicio
+Reiniciar servicio
 
 sudo systemctl restart btg-funds
 
