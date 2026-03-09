@@ -25,7 +25,7 @@ public class AuthController {
         this.authService = authService;
     }
 
-    @PostMapping("/register") 
+    @PostMapping("/register")   
     @Operation(
         summary = "Registrar nuevo usuario",
         description = "Permite registrar un nuevo usuario en el sistema"
