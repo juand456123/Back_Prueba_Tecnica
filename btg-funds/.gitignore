@@ -54,7 +54,7 @@ build/
 lombok.config
 
 ### Maven Wrapper ###
-.mvn/wrapper/maven-wrapper.properties
+# .mvn/wrapper/maven-wrapper.properties
 
 ### Test Reports ###
 surefire-reports/
