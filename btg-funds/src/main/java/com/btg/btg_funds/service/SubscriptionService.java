@@ -12,6 +12,6 @@ public interface SubscriptionService {
 
     void cancel(CancelSubscriptionRequest request);
 
-    List<TransactionResponse> getTransactionsByClientId(String clientId); 
+    List<TransactionResponse> getTransactionsByClientId(String clientId);
 
 }
