@@ -2,11 +2,33 @@ package com.btg.btg_funds.notification.template;
 
 import com.btg.btg_funds.document.ClientDocument;
 import com.btg.btg_funds.document.FundDocument;
+import com.btg.btg_funds.notification.model.NotificationChannelType;
+import com.btg.btg_funds.notification.model.NotificationEventType;
+import com.btg.btg_funds.notification.model.NotificationMessage;
 import org.springframework.stereotype.Component;
-import com.btg.btg_funds.notification.*;
 
 @Component
 public class NotificationTemplateBuilder {
+
+    public NotificationMessage build(NotificationChannelType channelType,
+                                     NotificationEventType eventType,
+                                     ClientDocument client,
+                                     FundDocument fund,
+                                     Double amount) {
+
+        return switch (channelType) {
+            case EMAIL -> new NotificationMessage(
+                    buildSubject(eventType),
+                    buildHtmlMessage(eventType, client, fund, amount),
+                    "text/html"
+            );
+            case SMS -> new NotificationMessage(
+                    null,
+                    buildPlainMessage(eventType, client, fund, amount),
+                    "text/plain"
+            );
+        };
+    }
 
     public String buildPlainMessage(NotificationEventType eventType,
                                     ClientDocument client,

@@ -4,6 +4,12 @@ springdoc:
   swagger-ui:
     path: /swagger-ui.html
 
+notification:
+  email:
+    provider: ${NOTIFICATION_EMAIL_PROVIDER:sendgrid}
+  sms:
+    provider: ${NOTIFICATION_SMS_PROVIDER:twilio}
+
 jwt:
   secret: ${JWT_SECRET}
   expiration: ${JWT_EXPIRATION:86400000}

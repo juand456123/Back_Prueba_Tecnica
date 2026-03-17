@@ -19,7 +19,7 @@ public class FundDocument {
 
     private String name;
 
-    private Integer minimumAmount;
+    private double minimumAmount;
 
     private String category;
 

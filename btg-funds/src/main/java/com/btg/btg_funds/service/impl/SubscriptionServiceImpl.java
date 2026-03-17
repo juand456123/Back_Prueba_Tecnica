@@ -6,121 +6,127 @@ import com.btg.btg_funds.dto.response.TransactionResponse;
 import com.btg.btg_funds.document.ClientDocument;
 import com.btg.btg_funds.document.FundDocument;
 import com.btg.btg_funds.document.SubscriptionDocument;
-import com.btg.btg_funds.document.TransactionDocument;
-import com.btg.btg_funds.exception.BusinessException;
-import com.btg.btg_funds.exception.ResourceNotFoundException;
-import com.btg.btg_funds.notification.NotificationDispatcher;
-import com.btg.btg_funds.notification.NotificationEventType;
+import com.btg.btg_funds.notification.dispatcher.NotificationDispatcher;
+import com.btg.btg_funds.notification.model.NotificationEventType;
 import com.btg.btg_funds.repository.ClientRepository;
-import com.btg.btg_funds.repository.FundRepository;
 import com.btg.btg_funds.repository.SubscriptionRepository;
 import com.btg.btg_funds.repository.TransactionRepository;
 import com.btg.btg_funds.service.SubscriptionService;
+import com.btg.btg_funds.service.factory.SubscriptionFactory;
+import com.btg.btg_funds.service.factory.TransactionFactory;
+import com.btg.btg_funds.service.helper.SubscriptionFinder;
+import com.btg.btg_funds.service.policy.SubscriptionPolicy;
+import com.btg.btg_funds.service.vo.Money;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
 public class SubscriptionServiceImpl implements SubscriptionService {
 
-    private final ClientRepository clientRepository;
-    private final FundRepository fundRepository;
+    private final SubscriptionFinder subscriptionFinder;
     private final SubscriptionRepository subscriptionRepository;
+    private final ClientRepository clientRepository;
     private final TransactionRepository transactionRepository;
     private final NotificationDispatcher notificationDispatcher;
+    private final SubscriptionPolicy subscriptionPolicy;
+    private final TransactionFactory transactionFactory;
+    private final SubscriptionFactory subscriptionFactory;
 
-    public SubscriptionServiceImpl(
-            ClientRepository clientRepository,
-            FundRepository fundRepository,
-            SubscriptionRepository subscriptionRepository,
-            TransactionRepository transactionRepository,
-            NotificationDispatcher notificationDispatcher) {
-
-        this.clientRepository = clientRepository;
-        this.fundRepository = fundRepository;
+    public SubscriptionServiceImpl(SubscriptionFinder subscriptionFinder,
+                                   SubscriptionRepository subscriptionRepository,
+                                   ClientRepository clientRepository,
+                                   TransactionRepository transactionRepository,
+                                   NotificationDispatcher notificationDispatcher,
+                                   SubscriptionPolicy subscriptionPolicy,
+                                   TransactionFactory transactionFactory,
+                                   SubscriptionFactory subscriptionFactory) {
+        this.subscriptionFinder = subscriptionFinder;
         this.subscriptionRepository = subscriptionRepository;
+        this.clientRepository = clientRepository;
         this.transactionRepository = transactionRepository;
         this.notificationDispatcher = notificationDispatcher;
+        this.subscriptionPolicy = subscriptionPolicy;
+        this.transactionFactory = transactionFactory;
+        this.subscriptionFactory = subscriptionFactory;
     }
 
     @Override
     public void subscribe(SubscribeRequest request) {
+        ClientDocument client = subscriptionFinder.findClientOrThrow(request.getClientId());
+        FundDocument fund = subscriptionFinder.findFundOrThrow(request.getFundId());
+        Money subscriptionAmount = Money.positive(request.getAmount());
 
-        ClientDocument client = clientRepository.findById(request.getClientId())
-                .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado"));
+        subscriptionPolicy.validateNewSubscription(
+                client,
+                fund,
+                subscriptionAmount,
+                subscriptionFinder.existsSubscription(request.getClientId(), request.getFundId())
+        );
 
-        FundDocument fund = fundRepository.findById(request.getFundId())
-                .orElseThrow(() -> new ResourceNotFoundException("Fondo no encontrado"));
-
-        subscriptionRepository.findByClientIdAndFundId(request.getClientId(), request.getFundId())
-                .ifPresent(existing -> {
-                    throw new BusinessException("El cliente ya se encuentra suscrito a este fondo");
-                });
-
-        if (client.getBalance() < request.getAmount()) {
-            throw new BusinessException("No tiene saldo disponible para vincularse al fondo " + fund.getName());
-        }
-
-        if (request.getAmount() < fund.getMinimumAmount()) {
-            throw new BusinessException("El monto es menor al mínimo requerido para el fondo " + fund.getName());
-        }
-
-        client.setBalance(client.getBalance() - request.getAmount());
+        client.setBalance(
+                subscriptionPolicy.calculateBalanceAfterSubscription(client, subscriptionAmount).toDouble()
+        );
         clientRepository.save(client);
 
-        SubscriptionDocument subscription = new SubscriptionDocument();
-        subscription.setClientId(request.getClientId());
-        subscription.setFundId(request.getFundId());
-        subscription.setAmount(request.getAmount());
-        subscriptionRepository.save(subscription);
+        subscriptionRepository.save(
+                subscriptionFactory.create(request.getClientId(), request.getFundId(), subscriptionAmount)
+        );
 
-        TransactionDocument transaction = new TransactionDocument();
-        transaction.setClientId(request.getClientId());
-        transaction.setFundId(request.getFundId());
-        transaction.setType("OPEN");
-        transaction.setAmount(request.getAmount());
-        transaction.setDate(LocalDateTime.now());
-        transactionRepository.save(transaction);
+        transactionRepository.save(
+                transactionFactory.createOpenTransaction(
+                        request.getClientId(),
+                        request.getFundId(),
+                        subscriptionAmount.toDouble()
+                )
+        );
 
-        notificationDispatcher.send(client, fund, request.getAmount(), NotificationEventType.SUBSCRIPTION);
+        notificationDispatcher.send(
+                client,
+                fund,
+                subscriptionAmount.toDouble(),
+                NotificationEventType.SUBSCRIPTION
+        );
     }
 
     @Override
     public void cancel(CancelSubscriptionRequest request) {
+        ClientDocument client = subscriptionFinder.findClientOrThrow(request.getClientId());
+        FundDocument fund = subscriptionFinder.findFundOrThrow(request.getFundId());
+        SubscriptionDocument subscription = subscriptionFinder.findSubscriptionOrThrow(
+                request.getClientId(),
+                request.getFundId()
+        );
 
-        ClientDocument client = clientRepository.findById(request.getClientId())
-                .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado"));
+        Money subscriptionAmount = Money.positive(subscription.getAmount());
 
-        FundDocument fund = fundRepository.findById(request.getFundId())
-                .orElseThrow(() -> new ResourceNotFoundException("Fondo no encontrado"));
-
-        SubscriptionDocument subscription = subscriptionRepository
-                .findByClientIdAndFundId(request.getClientId(), request.getFundId())
-                .orElseThrow(() -> new ResourceNotFoundException("Suscripción no encontrada"));
-
-        client.setBalance(client.getBalance() + subscription.getAmount());
+        client.setBalance(
+                subscriptionPolicy.calculateBalanceAfterCancellation(client, subscriptionAmount).toDouble()
+        );
         clientRepository.save(client);
 
-        TransactionDocument transaction = new TransactionDocument();
-        transaction.setClientId(request.getClientId());
-        transaction.setFundId(request.getFundId());
-        transaction.setType("CANCEL");
-        transaction.setAmount(subscription.getAmount());
-        transaction.setDate(LocalDateTime.now());
-        transactionRepository.save(transaction);
+        transactionRepository.save(
+                transactionFactory.createCancelTransaction(
+                        request.getClientId(),
+                        request.getFundId(),
+                        subscriptionAmount.toDouble()
+                )
+        );
 
         subscriptionRepository.delete(subscription);
 
-        notificationDispatcher.send(client, fund, subscription.getAmount(), NotificationEventType.CANCELLATION);
+        notificationDispatcher.send(
+                client,
+                fund,
+                subscriptionAmount.toDouble(),
+                NotificationEventType.CANCELLATION
+        );
     }
 
     @Override
     public List<TransactionResponse> getTransactionsByClientId(String clientId) {
-
-        clientRepository.findById(clientId)
-                .orElseThrow(() -> new ResourceNotFoundException("Cliente no encontrado"));
+        subscriptionFinder.findClientOrThrow(clientId);
 
         return transactionRepository.findByClientId(clientId)
                 .stream()
