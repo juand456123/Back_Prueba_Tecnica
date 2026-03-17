@@ -302,6 +302,6 @@ class SubscriptionServiceImplTest {
         assertEquals("client1", result.get(0).getClientId());
         assertEquals("fund1", result.get(0).getFundId());
         assertEquals("OPEN", result.get(0).getType());
-        assertEquals(75000.0, result.get(0).getAmount());
+        assertEquals(75000.0, result.get(0).getAmount()); 
     }
 }
